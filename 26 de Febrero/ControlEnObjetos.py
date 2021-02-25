@@ -29,8 +29,10 @@ class SMC():
                 xonxoff = False,
                 rtscts = False,
                 dsrdtr = False)
+        self.puerto = puerto
         self.ConfigurarSMC()
         self.posicion = 0
+        self.velocidadMmPorSegundo = 0.16 # mm/s
     def ConfigurarSMC(self):    
         self.address.write(b'1RS\r\n')
         time.sleep(5)
@@ -68,6 +70,7 @@ class Monocromador():
                 xonxoff = False,
                 rtscts = False,
                 dsrdtr = False)
+        self.puerto = puerto
         self.posicion = -87
         self.velocidadNmPorSegundo = 9
         self.ConfigurarMonocromador()
@@ -96,6 +99,7 @@ class LockIn():
         rm = pyvisa.ResourceManager()  # OJO EL SELF, PUEDE NO FUNCIONAR
         comando = 'GPIB0::' + str(puerto) + '::INSTR'
         self.address = rm.open_resource(comando)
+        self.puerto = puerto
         self.ConfigurarLockIn()
     def ConfigurarLockIn(self):
         self.address.write("OUTX1") #Setea en GPIB=1 o RSR232=0
@@ -146,9 +150,9 @@ class Grafico():
         
     def GraficarALambdaFija(self, VectorAGraficar, posicionSMC, posicionMono):
         if self.ejeX == 'Distancia':
-            self.x.append(posicionSMC/10000)
+            self.x.append(posicionSMC)
         else:
-            self.x.append((posicionSMC/10000)*(2/3)*(10^(-11)))
+            self.x.append((posicionSMC)*(2/3)*(10^(-11))) # en segundos
         if self.ValoresAGraficar(0)==1:
             self.y1.append(VectorAGraficar(0)) 
             self.ax1.plot(self.x,self.y1,'c*')
@@ -166,7 +170,7 @@ class Grafico():
         #Nombres y escalas de ejes    
     
     def GraficarAPosicionFija(self, VectorAGraficar, posicionSMC, posicionMono):
-        self.x.append(posicionMono*0.03125)
+        self.x.append(posicionMono)
         if self.ValoresAGraficar(0)==1:
             self.y1.append(VectorAGraficar(0)) 
             self.ax1.plot(self.x,self.y1,'c*')
@@ -185,10 +189,10 @@ class Grafico():
     
     def GraficarCompletamente(self, VectorAGraficar, posicionSMC, posicionMono):
         if self.ejeX == 'Distancia':
-            self.x.append(posicionSMC/10000)
+            self.x.append(posicionSMC)
         else:
-            self.x.append((posicionSMC/10000)*(2/3)*(10^(-11)))
-        self.z.append(posicionMono*0.03125)
+            self.x.append((posicionSMC)*(2/3)*(10^(-11)))
+        self.z.append(posicionMono)
         X, Z = np.meshgrid(self.x,self.z)
         if self.ValoresAGraficar(0)==1:
             self.yd1[0].append(VectorAGraficar(0)) 
@@ -233,7 +237,7 @@ class Grafico():
             self.GraficarCompletamente(VectorAGraficar, posicionSMC, posicionMono)
 
 #%%%
-QUITAR GRAFICO Y TIPO DE MEDICION DE ESTA CLASE
+# HAY QUE COMENTAR LA LINEA DE GRAFICAR EN ADQUIRIR PARA CORRER SOLO ESTA CLASE
 class Experimento():
     def __init__(self,VectorDePuertos):
         self.smc = SMC('COM'+str(VectorDePuertos[0]))
@@ -250,7 +254,6 @@ class Experimento():
         self.nombreArchivo = nombreArchivo
         self.numeroDeConstantesDeTiempo = numeroDeConstantesDeTiempo
         self.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)
-        self.TipoDeMedicion = 0
         self.mono.Mover(longitudDeOndaFija_nm)
         for i in range(0,len(VectorPosicionInicialSMC_mm)):
             self.smc.Mover(VectorPosicionInicialSMC_mm[i])
@@ -270,7 +273,6 @@ class Experimento():
         self.nombreArchivo = nombreArchivo
         self.numeroDeConstantesDeTiempo = numeroDeConstantesDeTiempo
         self.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)
-        self.TipoDeMedicion = 1
         self.smc.Mover(posicionFijaSMC_mm)
         for i in range(0,len(VectorLongitudDeOndaInicial_nm)):
             self.mono.Mover(VectorLongitudDeOndaInicial_nm[i])
@@ -303,7 +305,6 @@ class Experimento():
         self.nombreArchivo = nombreArchivo
         self.numeroDeConstantesDeTiempo = numeroDeConstantesDeTiempo
         self.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)
-        self.TipoDeMedicion = 2
         for i in range(0,len(VectorLongitudDeOndaInicial_nm)):
             self.mono.Mover(VectorLongitudDeOndaInicial_nm[i])
             numeroDePasosMono = int((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaFinal_nm[i])//VectorPasoMono_nm[i])
@@ -322,7 +323,7 @@ class Experimento():
 class Programa():     
     def Iniciar(self):
         raiz = tk.Tk()
-        raiz.title('Martin y Gonzalo Pump and Probe')
+        raiz.title('Pump and Probe Software')
         raiz.geometry('1000x800')   
         def SetearPuertosBoton():
             raiz.destroy()
@@ -333,7 +334,7 @@ class Programa():
     
     def ProgramaMedicionALambdaFija(self):
         raiz1 = tk.Tk()
-        raiz1.title('Medicion a Lambda Fija')
+        raiz1.title('Pump and Probe Software - Medicion a Lambda Fija')
         raiz1.geometry('1000x800')
         
         labelNombreArchivo = tk.Label(raiz1, text="Ingrese el nombre del archivo con la extensión\n .csv. Por ejemplo: datos2.csv")
@@ -368,7 +369,6 @@ class Programa():
             labelTituloPaso.grid(column=2, row=6)
                     
             
-            
             labelTituloConversor = tk.Label(raiz1, text="Conversor de mm a fs")
             labelTituloConversor.grid(column=3, row=0)
             labelmm = tk.Label(raiz1, text="mm")
@@ -379,26 +379,20 @@ class Programa():
             textomm.grid(column=3, row=2)
             textofs = tk.Entry(raiz1,width=15)
             textofs.grid(column=5, row=2)
-            
             def ConvertirAfs():
                 mm = textomm.get()
                 fs = float(mm)*6666.666
                 textofs.delete(0, tk.END)
                 textofs.insert(tk.END, fs)
-
             def ConvertirAmm():
                 fs = textofs.get()
                 mm = float(fs)/6666.666
                 textomm.delete(0, tk.END)
                 textomm.insert(tk.END, mm)
-
             botonConvertirAmm = tk.Button(raiz1, text="<-", command=ConvertirAmm)
             botonConvertirAmm.grid(column=4, row=1)
-            
             botonConvertirAfs = tk.Button(raiz1, text="->", command=ConvertirAfs)
             botonConvertirAfs.grid(column=4, row=2)
-        
-        
         
             if numeroDeSubintervalos>=1:
                 textoPosicionInicial1 = tk.Entry(raiz1,width=15)
@@ -501,69 +495,70 @@ class Programa():
             
             nombreArchivo = textoNombreArchivo.get()
             numeroDeConstantesDeTiempo = int(textoNumeroDeConstantesDeTiempo.get())
-            longitudDeOndaFija_Stp = int(float(textoLongitudDeOndaFija.get())/0.03125)
+            longitudDeOndaFija_nm = float(textoLongitudDeOndaFija.get())
         
             def IniciarMedicion():
                 ejeX = variable.get()
                 ValoresAGraficar = (Var1.get(),Var2.get(),Var3.get(),Var4.get())
-                self.experimento.grafico = Grafico(ValoresAGraficar,0,ejeX)
-                VectorPosicionInicialSMC_Stp = np.zeros(numeroDeSubintervalos)
-                VectorPosicionFinalSMC_Stp = np.zeros(numeroDeSubintervalos)
-                VectorPasoSMC_Stp = np.zeros(numeroDeSubintervalos)
+                self.grafico = Grafico(ValoresAGraficar,0,ejeX)
+                VectorPosicionInicialSMC_mm = np.zeros(numeroDeSubintervalos)
+                VectorPosicionFinalSMC_mm = np.zeros(numeroDeSubintervalos)
+                VectorPasoSMC_mm = np.zeros(numeroDeSubintervalos)
                 if numeroDeSubintervalos>=1:
-                    VectorPosicionInicialSMC_Stp[0] = int(float(textoPosicionInicial1.get())*10000)
-                    VectorPosicionFinalSMC_Stp[0] = int(float(textoPosicionFinal1.get())*10000)
-                    VectorPasoSMC_Stp[0] = int(float(textoPaso1.get())*10000)
+                    VectorPosicionInicialSMC_mm[0] = float(textoPosicionInicial1.get())
+                    VectorPosicionFinalSMC_mm[0] = float(textoPosicionFinal1.get())
+                    VectorPasoSMC_mm[0] = float(textoPaso1.get())
                 if numeroDeSubintervalos>=2:
-                    VectorPosicionInicialSMC_Stp[1] = int(float(textoPosicionInicial2.get())*10000)
-                    VectorPosicionFinalSMC_Stp[1] = int(float(textoPosicionFinal2.get())*10000)
-                    VectorPasoSMC_Stp[1] = int(float(textoPaso2.get())*10000)
+                    VectorPosicionInicialSMC_mm[1] = float(textoPosicionInicial2.get())
+                    VectorPosicionFinalSMC_mm[1] = float(textoPosicionFinal2.get())
+                    VectorPasoSMC_mm[1] = float(textoPaso2.get())
                 if numeroDeSubintervalos>=3:
-                    VectorPosicionInicialSMC_Stp[2] = int(float(textoPosicionInicial3.get())*10000)
-                    VectorPosicionFinalSMC_Stp[2] = int(float(textoPosicionFinal3.get())*10000)
-                    VectorPasoSMC_Stp[2] = int(float(textoPaso3.get())*10000)
+                    VectorPosicionInicialSMC_mm[2] = float(textoPosicionInicial3.get())
+                    VectorPosicionFinalSMC_mm[2] = float(textoPosicionFinal3.get())
+                    VectorPasoSMC_mm[2] = float(textoPaso3.get())
                 if numeroDeSubintervalos>=4:
-                    VectorPosicionInicialSMC_Stp[3] = int(float(textoPosicionInicial4.get())*10000)
-                    VectorPosicionFinalSMC_Stp[3] = int(float(textoPosicionFinal4.get())*10000)
-                    VectorPasoSMC_Stp[3] = int(float(textoPaso4.get())*10000)
+                    VectorPosicionInicialSMC_mm[3] = float(textoPosicionInicial4.get())
+                    VectorPosicionFinalSMC_mm[3] = float(textoPosicionFinal4.get())
+                    VectorPasoSMC_mm[3] = float(textoPaso4.get())
                 if numeroDeSubintervalos>=5:
-                    VectorPosicionInicialSMC_Stp[4] = int(float(textoPosicionInicial5.get())*10000)
-                    VectorPosicionFinalSMC_Stp[4] = int(float(textoPosicionFinal5.get())*10000)
-                    VectorPasoSMC_Stp[4] = int(float(textoPaso5.get())*10000)
+                    VectorPosicionInicialSMC_mm[4] = float(textoPosicionInicial5.get())
+                    VectorPosicionFinalSMC_mm[4] = float(textoPosicionFinal5.get())
+                    VectorPasoSMC_mm[4] = float(textoPaso5.get())
                 if numeroDeSubintervalos>=6:
-                    VectorPosicionInicialSMC_Stp[5] = int(float(textoPosicionInicial6.get())*10000)
-                    VectorPosicionFinalSMC_Stp[5] = int(float(textoPosicionFinal6.get())*10000)
-                    VectorPasoSMC_Stp[5] = int(float(textoPaso6.get())*10000)
+                    VectorPosicionInicialSMC_mm[5] = float(textoPosicionInicial6.get())
+                    VectorPosicionFinalSMC_mm[5] = float(textoPosicionFinal6.get())
+                    VectorPasoSMC_mm[5] = float(textoPaso6.get())
                 if numeroDeSubintervalos>=7:
-                    VectorPosicionInicialSMC_Stp[6] = int(float(textoPosicionInicial7.get())*10000)
-                    VectorPosicionFinalSMC_Stp[6] = int(float(textoPosicionFinal7.get())*10000)
-                    VectorPasoSMC_Stp[6] = int(float(textoPaso7.get())*10000)
+                    VectorPosicionInicialSMC_mm[6] = float(textoPosicionInicial7.get())
+                    VectorPosicionFinalSMC_mm[6] = float(textoPosicionFinal7.get())
+                    VectorPasoSMC_mm[6] = float(textoPaso7.get())
                 if numeroDeSubintervalos>=8:
-                    VectorPosicionInicialSMC_Stp[7] = int(float(textoPosicionInicial8.get())*10000)
-                    VectorPosicionFinalSMC_Stp[7] = int(float(textoPosicionFinal8.get())*10000)
-                    VectorPasoSMC_Stp[7] = int(float(textoPaso8.get())*10000)
+                    VectorPosicionInicialSMC_mm[7] = float(textoPosicionInicial8.get())
+                    VectorPosicionFinalSMC_mm[7] = float(textoPosicionFinal8.get())
+                    VectorPasoSMC_mm[7] = float(textoPaso8.get())
                 if numeroDeSubintervalos>=9:
-                    VectorPosicionInicialSMC_Stp[8] = int(float(textoPosicionInicial9.get())*10000)
-                    VectorPosicionFinalSMC_Stp[8] = int(float(textoPosicionFinal9.get())*10000)
-                    VectorPasoSMC_Stp[8] = int(float(textoPaso9.get())*10000)
+                    VectorPosicionInicialSMC_mm[8] = float(textoPosicionInicial9.get())
+                    VectorPosicionFinalSMC_mm[8] = float(textoPosicionFinal9.get())
+                    VectorPasoSMC_mm[8] = float(textoPaso9.get())
                 if numeroDeSubintervalos>=10:
-                    VectorPosicionInicialSMC_Stp[9] = int(float(textoPosicionInicial10.get())*10000)
-                    VectorPosicionFinalSMC_Stp[9] = int(float(textoPosicionFinal10.get())*10000)
-                    VectorPasoSMC_Stp[9] = int(float(textoPaso10.get())*10000)
+                    VectorPosicionInicialSMC_mm[9] = float(textoPosicionInicial10.get())
+                    VectorPosicionFinalSMC_mm[9] = float(textoPosicionFinal10.get())
+                    VectorPasoSMC_mm[9] = float(textoPaso10.get())
                     
                     
-                tiempoDeMedicion = str(self.CalcularTiempoDeMedicionALambdaFija(numeroDeConstantesDeTiempo,longitudDeOndaFija_Stp,VectorPosicionInicialSMC_Stp,VectorPosicionFinalSMC_Stp,VectorPasoSMC_Stp))
+                tiempoDeMedicion = str(self.CalcularTiempoDeMedicionALambdaFija(numeroDeConstantesDeTiempo,longitudDeOndaFija_nm,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm))
                 raizMedicion = tk.Tk()
-                raizMedicion.title('Martin y Gonzalo Pump and Probe - Midiendo a Lambda Fija')
+                raizMedicion.title('Pump and Probe Software - Midiendo a Lambda Fija')
                 raizMedicion.geometry('1000x1000')   
                 labelEstado = tk.Label(raizMedicion, text="Realizando la medicion. Tiempo estimado:" + tiempoDeMedicion + 'segundos')
                 labelEstado.grid(column=0, row=0)
                 
-                canvas = FigureCanvasTkAgg(self.experimento.grafico.fig, master=raizMedicion)
+                canvas = FigureCanvasTkAgg(self.grafico.fig, master=raizMedicion)
                 canvas.get_tk_widget().grid(row=1,column=0)
                 canvas.draw()
-                self.experimento.MedicionALambdaFija(nombreArchivo,numeroDeConstantesDeTiempo,longitudDeOndaFija_Stp,VectorPosicionInicialSMC_Stp,VectorPosicionFinalSMC_Stp,VectorPasoSMC_Stp)
-                self.experimento.grafico.GuardarGrafico(nombreArchivo)
+                self.experimento.grafico = self.grafico
+                self.experimento.MedicionALambdaFija(nombreArchivo,numeroDeConstantesDeTiempo,longitudDeOndaFija_nm,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm)
+                self.grafico.GuardarGrafico(nombreArchivo)
                 labelEstado = tk.Label(raizMedicion, text="Medicion Finalizada. El archivo ha sido guardado con el nombre:" + nombreArchivo)
                 labelEstado.grid(column=0, row=0)
                 
@@ -571,59 +566,59 @@ class Programa():
                     raizMedicion.destroy()    
                 botonFinalizar = tk.Button(raizMedicion, text="Finalizar", command=Finalizar)
                 botonFinalizar.grid(column=1, row=1)
-                
                 raizMedicion.mainloop()
                 
             botonIniciarMedicion = tk.Button(raiz1, text="Iniciar Medicion", command=IniciarMedicion)
             botonIniciarMedicion.grid(column=1, row=22)
        
-            
         botonSiguiente = tk.Button(raiz1, text="Siguiente", command=SiguienteDeLambdaFija)
         botonSiguiente.grid(column=1, row=4)
         raiz1.mainloop()
     
     def CalcularTiempoDeMedicionALambdaFija(self, numeroDeConstantesDeTiempo,
-                                            longitudDeOndaFija_Stp,
-                                            VectorPosicionInicialSMC_Stp,
-                                            VectorPosicionFinalSMC_Stp,
-                                            VectorPasoSMC_Stp):
+                                            longitudDeOndaFija_nm,
+                                            VectorPosicionInicialSMC_mm,
+                                            VectorPosicionFinalSMC_mm,
+                                            VectorPasoSMC_mm):
         TiempoDeMedicion = 0
         CantidadDeMediciones = 0
         TiempoDeDesplazamientoTotal = 0
         TiempoDeDesplazamientoPorPaso = 0
         TiempoMuerto = 0
-        TiempoMuerto = VectorPosicionInicialSMC_Stp[0]/1000
-        TiempoMonocromador = (longitudDeOndaFija_Stp-self.experimento.mono.posicion)/100
-        for i in range(0, len(VectorPosicionInicialSMC_Stp)):
+        TiempoMuerto = abs(VectorPosicionInicialSMC_mm[0]-self.experimento.smc.posicion)/self.experimento.smc.velocidadMmPorSegundo
+        TiempoMonocromador = abs(longitudDeOndaFija_nm-self.experimento.mono.posicion)/self.experimento.monocromador.velocidadNmPorSegundo
+        for i in range(0, len(VectorPosicionInicialSMC_mm)):
             if i>0:
-                TiempoMuerto = TiempoMuerto + (VectorPosicionInicialSMC_Stp[i]-VectorPosicionFinalSMC_Stp[i-1])/1000
-            CantidadDeMediciones = CantidadDeMediciones + (VectorPosicionFinalSMC_Stp[i]-VectorPosicionInicialSMC_Stp[i])/VectorPasoSMC_Stp[i]
-            TiempoDeDesplazamientoPorPaso = VectorPasoSMC_Stp[i]/1000
+                TiempoMuerto = TiempoMuerto + abs(VectorPosicionInicialSMC_mm[i]-VectorPosicionFinalSMC_mm[i-1])/self.experimento.smc.velocidadMmPorSegundo
+            CantidadDeMediciones = CantidadDeMediciones + abs(VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])/VectorPasoSMC_mm[i]
+            TiempoDeDesplazamientoPorPaso = VectorPasoSMC_mm[i]/self.experimento.smc.velocidadMmPorSegundo
             TiempoDeDesplazamientoTotal = TiempoDeDesplazamientoTotal + CantidadDeMediciones*TiempoDeDesplazamientoPorPaso
         TiempoDeMedicion = CantidadDeMediciones*(self.experimento.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)) + TiempoDeDesplazamientoTotal + TiempoMuerto + TiempoMonocromador
         return TiempoDeMedicion
     
     def CalcularTiempoDeMedicionAPosicionFijaSMC(self, numeroDeConstantesDeTiempo,
-                                                 posicionFijaSMC_Stp,
-                                                 VectorLongitudDeOndaInicial_Stp,
-                                                 VectorLongitudDeOndaFinal_Stp,
-                                                 VectorPasoMono_Stp):
+                                                 posicionFijaSMC_mm,
+                                                 VectorLongitudDeOndaInicial_nm,
+                                                 VectorLongitudDeOndaFinal_nm,
+                                                 VectorPasoMono_nm):
         TiempoDeMedicion = 0
         CantidadDeMediciones = 0
         TiempoDeDesplazamientoTotal = 0
         TiempoDeDesplazamientoPorPaso = 0
         TiempoMuerto = 0
-        TiempoMuerto = VectorLongitudDeOndaInicial_Stp[0]/100
-        TiempoSMC = (posicionFijaSMC_Stp-self.experimento.smc.posicion)/1000
-        for i in range(0, len(VectorLongitudDeOndaInicial_Stp)):
+        TiempoMuerto = abs(VectorLongitudDeOndaInicial_nm[0]-self.experimento.mono.posicion)/self.experimento.mono.velocidadNmPorSegundo
+        TiempoSMC = abs(posicionFijaSMC_mm-self.experimento.smc.posicion)/self.experimento.smc.velocidadMmPorSegundo
+        for i in range(0, len(VectorLongitudDeOndaInicial_nm)):
             if i>0:
-                TiempoMuerto = TiempoMuerto + (VectorLongitudDeOndaInicial_Stp[i]-VectorLongitudDeOndaFinal_Stp[i-1])/100
-            CantidadDeMediciones = CantidadDeMediciones + (VectorLongitudDeOndaFinal_Stp[i]-VectorLongitudDeOndaInicial_Stp[i])/VectorPasoMono_Stp[i]
-            TiempoDeDesplazamientoPorPaso = VectorPasoMono_Stp[i]/100
+                TiempoMuerto = TiempoMuerto + abs(VectorLongitudDeOndaInicial_nm[i]-VectorLongitudDeOndaFinal_nm[i-1])/self.experimento.mono.velocidadNmPorSegundo
+            CantidadDeMediciones = CantidadDeMediciones + abs(VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i]
+            TiempoDeDesplazamientoPorPaso = VectorPasoMono_nm[i]/self.experimento.mono.velocidadNmPorSegundo
             TiempoDeDesplazamientoTotal = TiempoDeDesplazamientoTotal + CantidadDeMediciones*TiempoDeDesplazamientoPorPaso
         TiempoDeMedicion = CantidadDeMediciones*(self.experimento.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)) + TiempoDeDesplazamientoTotal + TiempoMuerto + TiempoSMC
         return TiempoDeMedicion    
-    
+
+#HASTA ACA MODIFIQUE
+
     def CalcularTiempoDeMedicionCompleta(self, numeroDeConstantesDeTiempo,
                                          VectorPosicionInicialSMC_Stp,
                                          VectorPosicionFinalSMC_Stp,
@@ -670,7 +665,7 @@ class Programa():
     
     def ProgramaMedicionAPosicionFija(self):
         raiz2 = tk.Tk()
-        raiz2.title('Medicion a Posicion Fija')
+        raiz2.title('Pump and Probe Software - Medicion a Posicion Fija')
         raiz2.geometry('1000x800')
         
         labelNombreArchivo = tk.Label(raiz2, text="Ingrese el nombre del archivo con la extensión\n .csv. Por ejemplo: datos2.csv")
@@ -914,7 +909,7 @@ class Programa():
 
     def ProgramaMedicionCompleta(self):
         raiz3 = tk.Tk()
-        raiz3.title('Medicion Completa')    
+        raiz3.title('Pump and Probe Software - Medicion Completa')    
         raiz3.geometry('1400x800')
         
         labelNombreArchivo = tk.Label(raiz3, text="Ingrese el nombre del archivo con la extensión\n .csv. Por ejemplo: datos2.csv")
@@ -1283,34 +1278,26 @@ class Programa():
                 def Finalizar():
                     raizMedicion.destroy()    
                 botonFinalizar = tk.Button(raizMedicion, text="Finalizar", command=Finalizar)
-                botonFinalizar.grid(column=1, row=1)
-                
+                botonFinalizar.grid(column=1, row=1)    
                 raizMedicion.mainloop()
-                
-                
+                    
             botonIniciarMedicion = tk.Button(raiz3, text="Iniciar Medicion", command=IniciarMedicion)
             botonIniciarMedicion.grid(column=3, row=22)
         
-        
-        
         botonSiguiente = tk.Button(raiz3, text="Siguiente", command=Siguiente)
         botonSiguiente.grid(column=1, row=4)
-        
         raiz3.mainloop()
     
-    
-        
     def SetearPuertos(self):
-    
         raiz4 = tk.Tk()
-        raiz4.title('Martin y Gonzalo Pump and Probe - Seteo de puertos')
+        raiz4.title('Pump and Probe Software - Seteo de puertos')
         raiz4.geometry('1000x800')
         
         labelSMC = tk.Label(raiz4, text = 'Ingrese el número de puerto COM correspondiente al SMC. Ejemplo : 5')
         labelSMC.grid(column=0, row=0)
         textoSMC = tk.Entry(raiz4, width=5)
         textoSMC.grid(column=1, row=0)
-            
+        
         labelMono = tk.Label(raiz4, text = 'Ingrese el número de puerto COM correspondiente al Monocromador. Ejemplo : 4')
         labelMono.grid(column=0, row=1)
         textoMono = tk.Entry(raiz4, width=5)
@@ -1321,19 +1308,20 @@ class Programa():
         textoLockIn = tk.Entry(raiz4, width=5)
         textoLockIn.grid(column=1, row=2)
         
-#       labelOscilos = tk.Label(raiz4, text = 'Ingrese el número de puerto COM correspondiente al SMC. Ejemplo : 5')
-#       labelSMC.grid(column=0, row=0)
-#       textoSMC = tk.Entry(raiz4, width=5)
-#       textoSMC.grid(column=1, row=0)
-    
         def AdquirirPuertos():
             self.VectorDePuertos = (int(textoSMC.get()), int(textoMono.get()), int(textoLockIn.get()))
-        #    self.experimento = Experimento(self.VectorDePuertos) # CHEQUEAR SI AL SETEAR POR SEGUNDA VEZ LOS PUERTOS,
-                                                                # HAY UN OBJETO NUEVO O ES EL MISMO
+            if hasattr(self, 'experimento'):
+                if (self.experimento.smc.puerto) != ('COM' + str(self.VectorDePuertos[0])):
+                    self.experimento.smc = SMC('COM' + str(self.VectorDePuertos[0]))
+                if (self.experimento.mono.puerto) != ('COM' + str(self.VectorDePuertos[1])):
+                    self.experimento.mono = Monocromador('COM' + str(self.VectorDePuertos[1]))
+                if (self.experimento.lockin.puerto) != (self.VectorDePuertos[2]):
+                    self.experimento.lockin = LockIn(self.VectorDePuertos[2])
+            else:
+                self.experimento = Experimento(self.VectorDePuertos) 
             raiz4.destroy()
             self.Continuar()
 
-    
         botonOk = tk.Button(raiz4, text = 'Setear', command = AdquirirPuertos)
         botonOk.grid(column=1,row=3)
         
@@ -1341,7 +1329,7 @@ class Programa():
         
     def Continuar(self):
         raiz = tk.Tk()
-        raiz.title('Martin y Gonzalo Pump and Probe')
+        raiz.title('Pump and Probe Software')
         raiz.geometry('1000x800')   
         def SetearPuertosBis():
             raiz.destroy()
