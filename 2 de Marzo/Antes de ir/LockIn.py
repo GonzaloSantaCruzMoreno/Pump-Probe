@@ -38,3 +38,5 @@ class LockIn():
         else:
             TiempoDeIntegracion = 30*(10^(-6))*(10^((a-1)/2))
         self.TiempoDeIntegracionTotal = TiempoDeIntegracion*NumeroDeConstantesDeTiempo
+
+        #Hola hola hola
