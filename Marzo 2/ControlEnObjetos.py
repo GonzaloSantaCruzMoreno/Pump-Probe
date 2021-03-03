@@ -8,7 +8,6 @@ import serial
 import pyvisa
 import time
 import csv
-import pandas
 import tkinter as tk
 import numpy as np
 import matplotlib.pyplot as plt
@@ -175,72 +174,96 @@ class Grafico():
         self.y3 = list()
         self.y4 = list()   
         self.fig = plt.figure(figsize=(13,13))
-        self.ax1 = self.fig.add_subplot(221)
-        self.ax2 = self.fig.add_subplot(222)
-        self.ax3 = self.fig.add_subplot(223)
-        self.ax4 = self.fig.add_subplot(224)        
-        
+        if ValoresAGraficar[0]==1:
+            self.ax1 = self.fig.add_subplot(221)    
+            plt.title('X')
+            if ejeX == 'Distancia':
+                plt.xlabel('Posición de la plataforma de retardo (mm)')
+            else:
+                plt.xlabel('Desfasaje temporal (s)')
+            plt.ylabel('X (sin normalizar)')
+        if ValoresAGraficar[1]==1:
+            self.ax2 = self.fig.add_subplot(222)   
+            plt.title('Y')
+            if ejeX == 'Distancia':
+                plt.xlabel('Posición de la plataforma de retardo (mm)')
+            else:
+                plt.xlabel('Desfasaje temporal (s)')
+            plt.ylabel('Y (sin normalizar)')
+        if ValoresAGraficar[2]==1:
+            self.ax3 = self.fig.add_subplot(223)   
+            plt.title('R')
+            if ejeX == 'Distancia':
+                plt.xlabel('Posición de la plataforma de retardo (mm)')
+            else:
+                plt.xlabel('Desfasaje temporal (s)')
+            plt.ylabel('R (sin normalizar)')
+        if ValoresAGraficar[3]==1:
+            self.ax4 = self.fig.add_subplot(224)   
+            plt.title('\u03B8')
+            if ejeX == 'Distancia':
+                plt.xlabel('Posición de la plataforma de retardo (mm)')
+            else:
+                plt.xlabel('Desfasaje temporal (s)')
+            plt.ylabel('\u03B8'+ ' (sin normalizar)')       
     def GraficarALambdaFija(self, VectorAGraficar, posicionSMC, posicionMono):
         if self.ejeX == 'Distancia':
             self.x.append(posicionSMC)
         else:
             self.x.append((posicionSMC)*(2/3)*(10**(-11))) # en segundos
         if self.ValoresAGraficar[0]==1:
-            self.y1.append(VectorAGraficar[0]) 
+            self.y1.append(float(VectorAGraficar[0])) 
             self.ax1.plot(self.x,self.y1,'c*')
         if self.ValoresAGraficar[1]==1:
-            self.y2.append(VectorAGraficar[1])
+            self.y2.append(float(VectorAGraficar[1]))
             self.ax2.plot(self.x,self.y2,'m*')
         if self.ValoresAGraficar[2]==1:
-            self.y3.append(VectorAGraficar[2])
+            self.y3.append(float(VectorAGraficar[2]))
             self.ax3.plot(self.x,self.y3,'y*')
         if self.ValoresAGraficar[3]==1:
-            self.y4.append(VectorAGraficar[3])
+            self.y4.append(float(VectorAGraficar[3]))
             self.ax4.plot(self.x,self.y4,'k*')
         self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-        #Nombres y escalas de ejes    
-    
+        self.fig.canvas.flush_events()   
     def GraficarAPosicionFija(self, VectorAGraficar, posicionSMC, posicionMono):
         self.x.append(posicionMono)
         if self.ValoresAGraficar[0]==1:
-            self.y1.append(VectorAGraficar[0]) 
+            self.y1.append(float(VectorAGraficar[0])) 
             self.ax1.plot(self.x,self.y1,'c*')
         if self.ValoresAGraficar[1]==1:
-            self.y2.append(VectorAGraficar[1])
+            self.y2.append(float(VectorAGraficar[1]))
             self.ax2.plot(self.x,self.y2,'m*')
         if self.ValoresAGraficar[2]==1:
-            self.y3.append(VectorAGraficar[2])
+            self.y3.append(float(VectorAGraficar[2]))
             self.ax3.plot(self.x,self.y3,'y*')
         if self.ValoresAGraficar[3]==1:
-            self.y4.append(VectorAGraficar[3])
+            self.y4.append(float(VectorAGraficar[3]))
             self.ax4.plot(self.x,self.y4,'k*')
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
-        #Nombres y escalas de ejes
-    
+        
     def GraficarCompletamente(self, VectorAGraficar, posicionSMC, posicionMono):
         if self.ejeX == 'Distancia':
             self.x.append(posicionSMC)
         else:
             self.x.append((posicionSMC)*(2/3)*(10**(-11)))
         self.z.append(posicionMono)
-#        X = np.meshgrid(self.x,self.z)
+        X, Z = np.meshgrid(self.x,self.z)
         if self.ValoresAGraficar[0]==1:
-            self.yd1[0].append(VectorAGraficar[0]) 
-            self.yd1[1].append(VectorAGraficar[0]) 
+            self.yd1[0].append(float(VectorAGraficar[0])) 
+            self.yd1[1].append(float(VectorAGraficar[0])) 
             self.plot1 = self.ax1.contourf(self.x, self.z, self.yd1, 20, cmap='RdGy')
         if self.ValoresAGraficar[1]==1:
-            self.yd2[0].append(VectorAGraficar[1]) 
-            self.yd2[1].append(VectorAGraficar[1]) 
+            self.yd2[0].append(float(VectorAGraficar[1])) 
+            self.yd2[1].append(float(VectorAGraficar[1])) 
             self.plot2 = self.ax2.contourf(self.x, self.y, Z, 20, cmap='RdGy')
         if self.ValoresAGraficar[2]==1:
-            self.yd3[0].append(VectorAGraficar[2]) 
-            self.yd3[1].append(VectorAGraficar[2]) 
+            self.yd3[0].append(float(VectorAGraficar[2])) 
+            self.yd3[1].append(float(VectorAGraficar[2])) 
             self.plot3 = self.ax3.contourf(self.x, self.y, Z, 20, cmap='RdGy')
         if self.ValoresAGraficar[3]==1:
-            self.yd4[0].append(VectorAGraficar[3]) 
-            self.yd4[1].append(VectorAGraficar[3]) 
+            self.yd4[0].append(float(VectorAGraficar[3])) 
+            self.yd4[1].append(float(VectorAGraficar[3])) 
             self.plot4 = self.ax4.contourf(self.x, self.y, Z, 20, cmap='RdGy')
         self.fig.canvas.draw()
         self.fig.canvas.flush_events() 
@@ -259,7 +282,6 @@ class Grafico():
 
     def GuardarGrafico(self, nombreArchivo):
         self.fig.savefig(nombreArchivo, dpi=200)
-        
     def Graficar(self, VectorAGraficar, posicionSMC, posicionMono):
         if self.TipoDeMedicion == 0:
             self.GraficarALambdaFija(VectorAGraficar, posicionSMC, posicionMono)
@@ -269,7 +291,7 @@ class Grafico():
             self.GraficarCompletamente(VectorAGraficar, posicionSMC, posicionMono)
 
 #%%%
-# HAY QUE COMENTAR LA LINEA DE GRAFICAR EN ADQUIRIR PARA CORRER SOLO ESTA CLASE
+
 class Experimento():
     def __init__(self,VectorDePuertos):
         self.smc = SMC('COM'+str(VectorDePuertos[0]))
@@ -288,8 +310,11 @@ class Experimento():
         self.mono.Mover(longitudDeOndaFija_nm)
         for i in range(0,len(VectorPosicionInicialSMC_mm)):
             self.smc.Mover(VectorPosicionInicialSMC_mm[i])
-            self.Adquirir()
-            numeroDePasos = int((VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])//VectorPasoSMC_mm[i])
+            if i==0:
+                self.Adquirir()
+            if i>0 and VectorPosicionInicialSMC_mm[i] != VectorPosicionFinalSMC_mm[i-1]:
+                self.Adquirir()
+            numeroDePasos = abs(int((VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])/VectorPasoSMC_mm[i]))
             for j in range(0,numeroDePasos):
                 self.smc.Mover(VectorPasoSMC_mm[i]+self.smc.posicion)
                 self.Adquirir()
@@ -306,8 +331,11 @@ class Experimento():
         self.smc.Mover(posicionFijaSMC_mm)
         for i in range(0,len(VectorLongitudDeOndaInicial_nm)):
             self.mono.Mover(VectorLongitudDeOndaInicial_nm[i])
-            self.Adquirir()
-            numeroDePasos = int((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])//VectorPasoMono_nm[i])
+            if i==0:
+                self.Adquirir()
+            if i>0 and VectorLongitudDeOndaInicial_nm[i] != VectorLongitudDeOndaFinal_nm[i-1]:
+                self.Adquirir()
+            numeroDePasos = abs(int((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i]))
             for j in range(0,numeroDePasos):
                 self.mono.Mover(VectorPasoMono_nm[i]+self.mono.posicion)
                 self.Adquirir()
@@ -321,7 +349,7 @@ class Experimento():
         a = a.replace('\n','')
         a = a + ',' + str(self.smc.posicion) + ',' + str(self.mono.posicion)
         b = a.split(',')
-#        self.grafico.Graficar(b,self.smc.posicion,self.mono.posicion)
+        self.grafico.Graficar(b,self.smc.posicion,self.mono.posicion)
         self.GrabarCSV(b)
         return b
 
@@ -339,16 +367,20 @@ class Experimento():
         self.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)
         for i in range(0,len(VectorLongitudDeOndaInicial_nm)):
             self.mono.Mover(VectorLongitudDeOndaInicial_nm[i])
-            numeroDePasosMono = int((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])//VectorPasoMono_nm[i])
-            for j in range(0,numeroDePasosMono):
+            numeroDePasosMono = abs(int((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i]))
+            for j in range(0,numeroDePasosMono+1):
                 for k in range(0,len(VectorPosicionInicialSMC_mm)):
                     self.smc.Mover(VectorPosicionInicialSMC_mm[k])
-                    self.Adquirir()
-                    numeroDePasosSMC = int((VectorPosicionFinalSMC_mm[k]-VectorPosicionInicialSMC_mm[k])//VectorPasoSMC_mm[k])
+                    if k==0:
+                        self.Adquirir()
+                    if k>0 and VectorPosicionInicialSMC_mm[k] != VectorPosicionFinalSMC_mm[k-1]:
+                        self.Adquirir()
+                    numeroDePasosSMC = abs(int((VectorPosicionFinalSMC_mm[k]-VectorPosicionInicialSMC_mm[k])/VectorPasoSMC_mm[k]))
                     for l in range(0,numeroDePasosSMC):
                         self.smc.Mover(VectorPasoSMC_mm[k]+self.smc.posicion)
                         self.Adquirir()
-                self.mono.Mover(VectorPasoMono_nm[i] + self.mono.posicion)
+                if j<numeroDePasosMono:
+                    self.mono.Mover(VectorPasoMono_nm[i] + self.mono.posicion)
         
 #%%%
        
@@ -1350,7 +1382,14 @@ class Programa():
         labelTheta.grid(column=3, row=4)
         textoTheta = tk.Entry(raiz5, width=5)
         textoTheta.grid(column=3, row=5)
-        
+        labelAuxIn = tk.Label(raiz5, text = 'Aux In 1 (Señal DC)')
+        labelAuxIn.grid(column=4, row=4)
+        textoAuxIn = tk.Entry(raiz5, width=5)
+        textoAuxIn.grid(column=4, row=5)
+        labelCocienteXConAuxIn = tk.Label(raiz5, text = 'X/Aux In 1')
+        labelCocienteXConAuxIn.grid(column=5, row=4)
+        textoCocienteXConAuxIn = tk.Entry(raiz5, width=5)
+        textoCocienteXConAuxIn.grid(column=5, row=5)
         
         def IniciarMedicion():
             t.start()
@@ -1365,7 +1404,16 @@ class Programa():
                 textoR.insert(tk.END, vectorDeStringsDeDatos[2])
                 textoTheta.delete(0, tk.END)
                 textoTheta.insert(tk.END, vectorDeStringsDeDatos[3]) 
-                time.sleep(2)
+                textoAuxIn.delete(0, tk.END)
+                textoAuxIn.insert(tk.END, vectorDeStringsDeDatos[4]) 
+                cociente = 0
+                if float(vectorDeStringsDeDatos[4]) != 0:
+                    cociente = float(vectorDeStringsDeDatos[0])/float(vectorDeStringsDeDatos[4])
+                else:
+                    cociente = float('inf')
+                textoCocienteXConAuxIn.delete(0, tk.END)
+                textoCocienteXConAuxIn.insert(tk.END, str(cociente)) 
+                time.sleep(0.5)
         def FrenarMedicion():
             t.do_run = False
             t.join()
