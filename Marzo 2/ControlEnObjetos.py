@@ -159,16 +159,22 @@ class LockIn():
 #%%%        
 
 class Grafico(): 
-    def __init__(self, ValoresAGraficar, TipoDeMedicion, ejeX):
+    def __init__(self, ValoresAGraficar, TipoDeMedicion, ejeX, VectorPosicionInicialSMC_mm = 0, VectorPosicionFinalSMC_mm = 0, VectorPasoSMC_mm = 0, VectorLongitudDeOndaInicial_nm = 0, VectorLongitudDeOndaFinal_nm = 0, VectorPasoMono_nm = 0):
         self.TipoDeMedicion = TipoDeMedicion
         self.ValoresAGraficar = ValoresAGraficar
         self.ejeX = ejeX
         self.x = list()
         self.z = list()
-        self.yd1 = list(), list()
-        self.yd2 = list(), list()
-        self.yd3 = list(), list()
-        self.yd4 = list(), list()
+        self.VectorX = 0
+        self.VectorY = 0
+        self.M1 = 0
+        self.M2 = 0
+        self.M3 = 0
+        self.M4 = 0
+#        self.yd1 = list(), list()
+#        self.yd2 = list(), list()
+#        self.yd3 = list(), list()
+#        self.yd4 = list(), list()
         self.y1 = list()
         self.y2 = list()
         self.y3 = list()
@@ -206,6 +212,34 @@ class Grafico():
             else:
                 plt.xlabel('Desfasaje temporal (s)')
             plt.ylabel('\u03B8'+ ' (sin normalizar)')       
+        if TipoDeMedicion == 2:   #Para el gráfico 3D; X es el vector de posiciones del SMC e Y del Monocromador.
+            numeroDePasos = 0
+            self.VectorX = np.array(VectorPosicionInicialSMC_mm[0])
+            for i in range(0,len(VectorPosicionInicialSMC_mm)):
+                if i>0 and VectorPosicionInicialSMC_mm[i] != VectorPosicionFinalSMC_mm[i-1]:
+                    self.VectorX = np.append(self.VectorX, VectorPosicionInicialSMC_mm[i])
+                numeroDePasos = int((VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])/VectorPasoSMC_mm[i])
+                for j in range(0,numeroDePasos):
+                    self.VectorX = np.append(self.VectorX, VectorPosicionInicialSMC_mm[i]+VectorPasoSMC_mm[i])         
+            
+            numeroDePasos = 0
+            self.VectorY = np.array(VectorLongitudDeOndaInicial_nm[0])
+            for i in range(0,len(VectorLongitudDeOndaInicial_nm)):
+                if i>0 and VectorLongitudDeOndaInicial_nm[i] != VectorLongitudDeOndaFinal_nm[i-1]:
+                    self.VectorY = np.append(self.VectorY, VectorLongitudDeOndaInicial_nm[i])
+                numeroDePasos = int((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i])
+                for j in range(0,numeroDePasos):
+                    self.VectorY = np.append(self.VectorY, VectorLongitudDeOndaInicial_nm[i]+VectorPasoMono_nm[i])
+
+            if ValoresAGraficar[0] == 1:
+                self.M1 = np.zeros((len(self.VectorY),len(self.VectorX)))
+            if ValoresAGraficar[1] == 1:
+                self.M2 = np.zeros((len(self.VectorY),len(self.VectorX)))
+            if ValoresAGraficar[2] == 1:
+                self.M3 = np.zeros((len(self.VectorY),len(self.VectorX)))
+            if ValoresAGraficar[3] == 1:
+                self.M4 = np.zeros((len(self.VectorY),len(self.VectorX)))
+
     def GraficarALambdaFija(self, VectorAGraficar, posicionSMC, posicionMono):
         if self.ejeX == 'Distancia':
             self.x.append(posicionSMC)
@@ -241,30 +275,21 @@ class Grafico():
             self.ax4.plot(self.x,self.y4,'k*')
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
-        
     def GraficarCompletamente(self, VectorAGraficar, posicionSMC, posicionMono):
-        if self.ejeX == 'Distancia':
-            self.x.append(posicionSMC)
-        else:
-            self.x.append((posicionSMC)*(2/3)*(10**(-11)))
-        self.z.append(posicionMono)
-        X, Z = np.meshgrid(self.x,self.z)
+        posicionX = np.where(self.VectorX == posicionSMC)
+        posicionY = np.where(self.VectorY == posicionMono)
         if self.ValoresAGraficar[0]==1:
-            self.yd1[0].append(float(VectorAGraficar[0])) 
-            self.yd1[1].append(float(VectorAGraficar[0])) 
-            self.plot1 = self.ax1.contourf(self.x, self.z, self.yd1, 20, cmap='RdGy')
+            self.M1[posicionX[0][0],posicionY[0][0]] = float(VectorAGraficar[0]) 
+            self.plot1 = self.ax1.contourf(self.VectorX, self.VectorY, self.M1, 20, cmap='RdGy')
         if self.ValoresAGraficar[1]==1:
-            self.yd2[0].append(float(VectorAGraficar[1])) 
-            self.yd2[1].append(float(VectorAGraficar[1])) 
-            self.plot2 = self.ax2.contourf(self.x, self.y, Z, 20, cmap='RdGy')
+            self.M2[posicionX[0][0],posicionY[0][0]] = float(VectorAGraficar[1]) 
+            self.plot2 = self.ax2.contourf(self.VectorX, self.VectorY, self.M2, 20, cmap='RdGy')
         if self.ValoresAGraficar[2]==1:
-            self.yd3[0].append(float(VectorAGraficar[2])) 
-            self.yd3[1].append(float(VectorAGraficar[2])) 
-            self.plot3 = self.ax3.contourf(self.x, self.y, Z, 20, cmap='RdGy')
+            self.M3[posicionX[0][0],posicionY[0][0]] = float(VectorAGraficar[2]) 
+            self.plot3 = self.ax3.contourf(self.VectorX, self.VectorY, self.M3, 20, cmap='RdGy')
         if self.ValoresAGraficar[3]==1:
-            self.yd4[0].append(float(VectorAGraficar[3])) 
-            self.yd4[1].append(float(VectorAGraficar[3])) 
-            self.plot4 = self.ax4.contourf(self.x, self.y, Z, 20, cmap='RdGy')
+            self.M4[posicionX[0][0],posicionY[0][0]] = float(VectorAGraficar[3]) 
+            self.plot4 = self.ax4.contourf(self.VectorX, self.VectorY, self.M4, 20, cmap='RdGy')
         self.fig.canvas.draw()
         self.fig.canvas.flush_events() 
 
@@ -1202,7 +1227,6 @@ class Programa():
             def IniciarMedicion():
                 ejeX = variable.get()
                 ValoresAGraficar = (Var1.get(),Var2.get(),Var3.get(),Var4.get())
-                self.grafico = Grafico(ValoresAGraficar,2,ejeX)
                 VectorLongitudDeOndaInicial_nm = np.zeros(numeroDeSubintervalosMono)
                 VectorLongitudDeOndaFinal_nm = np.zeros(numeroDeSubintervalosMono)
                 VectorPasoMono_nm = np.zeros(numeroDeSubintervalosMono)
@@ -1246,7 +1270,6 @@ class Programa():
                     VectorLongitudDeOndaInicial_nm[9] = float(textoPosicionInicial10Mono.get())
                     VectorLongitudDeOndaFinal_nm[9] = float(textoPosicionFinal10Mono.get())
                     VectorPasoMono_nm[9] = float(textoPaso10Mono.get())
-
                     
                 VectorPosicionInicialSMC_mm = np.zeros(numeroDeSubintervalosSMC)
                 VectorPosicionFinalSMC_mm = np.zeros(numeroDeSubintervalosSMC)
@@ -1292,6 +1315,9 @@ class Programa():
                     VectorPosicionFinalSMC_mm[9] = float(textoPosicionFinal10SMC.get())
                     VectorPasoSMC_mm[9] = float(textoPaso10SMC.get())
                     
+                    
+                self.grafico = Grafico(ValoresAGraficar,2,ejeX,VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
+                
                 tiempoDeMedicion = str(self.CalcularTiempoDeMedicionCompleta(numeroDeConstantesDeTiempo,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm,VectorLongitudDeOndaInicial_nm,VectorLongitudDeOndaFinal_nm,VectorPasoMono_nm))
                 raizMedicion = tk.Tk()
                 raizMedicion.title('Pump and Probe Software - Medición Completa')
