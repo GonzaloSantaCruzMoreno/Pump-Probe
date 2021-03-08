@@ -334,6 +334,8 @@ class Experimento():
         self.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)
         self.mono.Mover(longitudDeOndaFija_nm)
         for i in range(0,len(VectorPosicionInicialSMC_mm)):
+            if t.do_run == False:
+                return
             self.smc.Mover(VectorPosicionInicialSMC_mm[i])
             if i==0:
                 self.Adquirir()
@@ -341,6 +343,8 @@ class Experimento():
                 self.Adquirir()
             numeroDePasos = abs(int((VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])/VectorPasoSMC_mm[i]))
             for j in range(0,numeroDePasos):
+                if t.do_run == False:
+                    return
                 self.smc.Mover(VectorPasoSMC_mm[i]+self.smc.posicion)
                 self.Adquirir()
     def MedicionAPosicionFijaSMC(self,
@@ -646,15 +650,26 @@ class Programa():
                 canvas.draw()
                 raizMedicion.update()
                 self.experimento.grafico = self.grafico
-                self.experimento.MedicionALambdaFija(nombreArchivo,numeroDeConstantesDeTiempo,longitudDeOndaFija_nm,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm)
-                nombreGrafico = nombreArchivo.replace('.csv','')
-                self.grafico.GuardarGrafico(nombreGrafico)
-                labelEstado = tk.Label(raizMedicion, text="Medicion Finalizada. El archivo ha sido guardado con el nombre: " + nombreArchivo)
-                labelEstado.grid(column=0, row=2)               
-                def Finalizar():
-                    raizMedicion.destroy()    
-                botonFinalizar = tk.Button(raizMedicion, text="Finalizar", command=Finalizar)
-                botonFinalizar.grid(column=1, row=2)
+                def CorriendoExperimento():
+                    self.experimento.MedicionALambdaFija(nombreArchivo,numeroDeConstantesDeTiempo,longitudDeOndaFija_nm,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm)
+                    nombreGrafico = nombreArchivo.replace('.csv','')
+                    self.grafico.GuardarGrafico(nombreGrafico)
+                    labelEstado = tk.Label(raizMedicion, text="Medicion Finalizada. El archivo ha sido guardado con el nombre: " + nombreArchivo)
+                    labelEstado.grid(column=0, row=2)               
+                    def Finalizar():
+                        raizMedicion.destroy()    
+                    botonFinalizar = tk.Button(raizMedicion, text="Finalizar", command=Finalizar)
+                    botonFinalizar.grid(column=1, row=2)
+                t = th.Thread(target=CorriendoExperimento)
+                t.do_run = True
+                t.start()
+                def CancelarMedicion():
+                    t.do_run = False
+                    t.join()
+                    raizMedicion.destroy()
+                botonCancelarMedicion = tk.Button(raizMedicion, text="Cancelar", command=CancelarMedicion)
+                botonCancelarMedicion.grid(column=1, row=0)
+                
                 raizMedicion.mainloop()              
             botonIniciarMedicion = tk.Button(raiz1, text="Iniciar Medicion", command=IniciarMedicion)
             botonIniciarMedicion.grid(column=1, row=22)
@@ -1418,6 +1433,9 @@ class Programa():
         textoCocienteXConAuxIn.grid(column=5, row=5)
         
         def IniciarMedicion():
+            global t
+            t = th.Thread(target=Medicion)
+            t.do_run = True
             t.start()
         def Medicion():
             while t.do_run == True:
@@ -1443,8 +1461,6 @@ class Programa():
         def FrenarMedicion():
             t.do_run = False
             t.join()
-        t = th.Thread(target=Medicion)   
-        t.do_run = True
         
         botonIniciarMedicion = tk.Button(raiz5, text="Iniciar Medicion", command=IniciarMedicion)
         botonIniciarMedicion.grid(column=1, row=3)
