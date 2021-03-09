@@ -334,19 +334,25 @@ class Experimento():
         self.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)
         self.mono.Mover(longitudDeOndaFija_nm)
         for i in range(0,len(VectorPosicionInicialSMC_mm)):
-            if t.do_run == False:
-                return
+#            if t.do_run == False:
+#                return
             self.smc.Mover(VectorPosicionInicialSMC_mm[i])
             if i==0:
-                self.Adquirir()
+                vectorDeStringsDeDatos = self.Adquirir()
+                self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
+                self.GrabarCSV(vectorDeStringsDeDatos)
             if i>0 and VectorPosicionInicialSMC_mm[i] != VectorPosicionFinalSMC_mm[i-1]:
-                self.Adquirir()
+                vectorDeStringsDeDatos = self.Adquirir()
+                self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
+                self.GrabarCSV(vectorDeStringsDeDatos)
             numeroDePasos = abs(int((VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])/VectorPasoSMC_mm[i]))
             for j in range(0,numeroDePasos):
-                if t.do_run == False:
-                    return
+#                if t.do_run == False:
+#                    return
                 self.smc.Mover(VectorPasoSMC_mm[i]+self.smc.posicion)
-                self.Adquirir()
+                vectorDeStringsDeDatos = self.Adquirir()
+                self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
+                self.GrabarCSV(vectorDeStringsDeDatos)
     def MedicionAPosicionFijaSMC(self,
                             nombreArchivo,
                             numeroDeConstantesDeTiempo,
@@ -361,13 +367,19 @@ class Experimento():
         for i in range(0,len(VectorLongitudDeOndaInicial_nm)):
             self.mono.Mover(VectorLongitudDeOndaInicial_nm[i])
             if i==0:
-                self.Adquirir()
+                vectorDeStringsDeDatos = self.Adquirir()
+                self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
+                self.GrabarCSV(vectorDeStringsDeDatos)
             if i>0 and VectorLongitudDeOndaInicial_nm[i] != VectorLongitudDeOndaFinal_nm[i-1]:
-                self.Adquirir()
+                vectorDeStringsDeDatos = self.Adquirir()
+                self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
+                self.GrabarCSV(vectorDeStringsDeDatos)
             numeroDePasos = abs(int((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i]))
             for j in range(0,numeroDePasos):
                 self.mono.Mover(VectorPasoMono_nm[i]+self.mono.posicion)
-                self.Adquirir()
+                vectorDeStringsDeDatos = self.Adquirir()
+                self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
+                self.GrabarCSV(vectorDeStringsDeDatos)
     def GrabarCSV(self, vectorDeStringsDeDatos):
         with open(self.nombreArchivo, 'a') as csvfile:
             filewriter = csv.writer(csvfile, delimiter=',')
@@ -378,8 +390,6 @@ class Experimento():
         a = a.replace('\n','')
         a = a + ',' + str(self.smc.posicion) + ',' + str(self.mono.posicion)
         b = a.split(',')
-        self.grafico.Graficar(b,self.smc.posicion,self.mono.posicion)
-        self.GrabarCSV(b)
         return b
 
     def MedicionCompleta(self, 
@@ -401,13 +411,19 @@ class Experimento():
                 for k in range(0,len(VectorPosicionInicialSMC_mm)):
                     self.smc.Mover(VectorPosicionInicialSMC_mm[k])
                     if k==0:
-                        self.Adquirir()
+                        vectorDeStringsDeDatos = self.Adquirir()
+                        self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
+                        self.GrabarCSV(vectorDeStringsDeDatos)
                     if k>0 and VectorPosicionInicialSMC_mm[k] != VectorPosicionFinalSMC_mm[k-1]:
-                        self.Adquirir()
+                        vectorDeStringsDeDatos = self.Adquirir()
+                        self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
+                        self.GrabarCSV(vectorDeStringsDeDatos)
                     numeroDePasosSMC = abs(int((VectorPosicionFinalSMC_mm[k]-VectorPosicionInicialSMC_mm[k])/VectorPasoSMC_mm[k]))
                     for l in range(0,numeroDePasosSMC):
                         self.smc.Mover(VectorPasoSMC_mm[k]+self.smc.posicion)
-                        self.Adquirir()
+                        vectorDeStringsDeDatos = self.Adquirir()
+                        self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
+                        self.GrabarCSV(vectorDeStringsDeDatos)
                 if j<numeroDePasosMono:
                     self.mono.Mover(VectorPasoMono_nm[i] + self.mono.posicion)
         
@@ -650,25 +666,26 @@ class Programa():
                 canvas.draw()
                 raizMedicion.update()
                 self.experimento.grafico = self.grafico
-                def CorriendoExperimento():
-                    self.experimento.MedicionALambdaFija(nombreArchivo,numeroDeConstantesDeTiempo,longitudDeOndaFija_nm,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm)
-                    nombreGrafico = nombreArchivo.replace('.csv','')
-                    self.grafico.GuardarGrafico(nombreGrafico)
-                    labelEstado = tk.Label(raizMedicion, text="Medicion Finalizada. El archivo ha sido guardado con el nombre: " + nombreArchivo)
-                    labelEstado.grid(column=0, row=2)               
-                    def Finalizar():
-                        raizMedicion.destroy()    
-                    botonFinalizar = tk.Button(raizMedicion, text="Finalizar", command=Finalizar)
-                    botonFinalizar.grid(column=1, row=2)
-                t = th.Thread(target=CorriendoExperimento)
-                t.do_run = True
-                t.start()
-                def CancelarMedicion():
-                    t.do_run = False
-                    t.join()
-                    raizMedicion.destroy()
-                botonCancelarMedicion = tk.Button(raizMedicion, text="Cancelar", command=CancelarMedicion)
-                botonCancelarMedicion.grid(column=1, row=0)
+#                def CorriendoExperimento():
+                self.experimento.MedicionALambdaFija(nombreArchivo,numeroDeConstantesDeTiempo,longitudDeOndaFija_nm,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm)
+                nombreGrafico = nombreArchivo.replace('.csv','')
+                self.grafico.GuardarGrafico(nombreGrafico)
+                labelEstado = tk.Label(raizMedicion, text="Medicion Finalizada. El archivo ha sido guardado con el nombre: " + nombreArchivo)
+                labelEstado.grid(column=0, row=2)               
+                def Finalizar():
+                    raizMedicion.destroy()    
+                botonFinalizar = tk.Button(raizMedicion, text="Finalizar", command=Finalizar)
+                botonFinalizar.grid(column=1, row=2)
+#                global t 
+#                t = th.Thread(target=CorriendoExperimento)
+#                t.do_run = True
+#                t.start()
+#                def CancelarMedicion():
+#                    t.do_run = False
+#                    t.join()
+#                    raizMedicion.destroy()
+#                botonCancelarMedicion = tk.Button(raizMedicion, text="Cancelar", command=CancelarMedicion)
+#                botonCancelarMedicion.grid(column=1, row=0)
                 
                 raizMedicion.mainloop()              
             botonIniciarMedicion = tk.Button(raiz1, text="Iniciar Medicion", command=IniciarMedicion)
@@ -1457,10 +1474,8 @@ class Programa():
                     cociente = float('inf')
                 textoCocienteXConAuxIn.delete(0, tk.END)
                 textoCocienteXConAuxIn.insert(tk.END, str(cociente)) 
-                time.sleep(0.5)
         def FrenarMedicion():
             t.do_run = False
-            t.join()
         
         botonIniciarMedicion = tk.Button(raiz5, text="Iniciar Medicion", command=IniciarMedicion)
         botonIniciarMedicion.grid(column=1, row=3)
