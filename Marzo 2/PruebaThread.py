@@ -2,6 +2,7 @@ import tkinter as tk
 import threading as th
 import numpy as np
 import time
+global t
 
 def MediciónManual():
     raiz5 = tk.Tk()
@@ -61,15 +62,13 @@ def MediciónManual():
     labelCocienteXConAuxIn.grid(column=5, row=4)
     textoCocienteXConAuxIn = tk.Entry(raiz5, width=5)
     textoCocienteXConAuxIn.grid(column=5, row=5)
-
-    def IniciarMedicion():
-        global t
-        t = th.Thread(target=Medicion)   
+    
+    def IniciarMedicion():   
+        global t 
+        t = th.Thread(target=Medicion)
         t.do_run = True
-#        if t.do_run == True:
         t.start()
-#        if t.do_run == False:
-#            t.do_run = True
+        print('thread principal')
     def Medicion():
         MedicionBis()
         print('hola')
@@ -99,7 +98,7 @@ def MediciónManual():
     def FrenarMedicion():
         t.do_run = False
         t.join()
-    
+
     botonIniciarMedicion = tk.Button(raiz5, text="Iniciar Medicion", command=IniciarMedicion)
     botonIniciarMedicion.grid(column=1, row=3)
     botonFrenarMedicion = tk.Button(raiz5, text="Frenar Medicion", command=FrenarMedicion)

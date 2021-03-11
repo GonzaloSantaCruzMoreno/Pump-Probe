@@ -12,7 +12,10 @@ import tkinter as tk
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import threading as th
+
+global t
 
 #%%%%%%
 
@@ -98,7 +101,7 @@ class Monocromador():
 #        time.sleep(5)
         self.Mover(400)
     def Mover(self, LongitudDeOnda_nm): 
-        comando = '#MCL\r3\r' + str(LongitudDeOnda_nm) + '\r' #EN EL PROGRAMA INGRESAR LA LONGITUD DE ONDA CON .
+        comando = '#MCL\r3\r' + str(LongitudDeOnda_nm) + '\r' 
         self.address.write(comando.encode())
         time.sleep(self.CalcularTiempoSleep(LongitudDeOnda_nm))
         self.posicion = LongitudDeOnda_nm
@@ -114,7 +117,7 @@ class Monocromador():
     
 class LockIn():
     def __init__(self,puerto):
-        rm = pyvisa.ResourceManager()  # OJO EL SELF, PUEDE NO FUNCIONAR
+        rm = pyvisa.ResourceManager()
         comando = 'GPIB0::' + str(puerto) + '::INSTR'
         self.address = rm.open_resource(comando)
         self.ConfigurarLockIn()
@@ -171,10 +174,6 @@ class Grafico():
         self.M2 = 0
         self.M3 = 0
         self.M4 = 0
-#        self.yd1 = list(), list()
-#        self.yd2 = list(), list()
-#        self.yd3 = list(), list()
-#        self.yd4 = list(), list()
         self.y1 = list()
         self.y2 = list()
         self.y3 = list()
@@ -279,32 +278,31 @@ class Grafico():
         posicionX = np.where(self.VectorX == posicionSMC)
         posicionY = np.where(self.VectorY == posicionMono)
         if self.ValoresAGraficar[0]==1:
-            self.M1[posicionX[0][0],posicionY[0][0]] = float(VectorAGraficar[0]) 
+            self.M1[posicionY[0][0],posicionX[0][0]] = float(VectorAGraficar[0]) 
             self.plot1 = self.ax1.contourf(self.VectorX, self.VectorY, self.M1, 20, cmap='RdGy')
+#            divider = make_axes_locatable(self.ax1)
+#            cax = divider.append_axes("right", size="5%", pad=0.05)
+#            self.fig.colorbar(self.plot1,cax=cax)
         if self.ValoresAGraficar[1]==1:
-            self.M2[posicionX[0][0],posicionY[0][0]] = float(VectorAGraficar[1]) 
+            self.M2[posicionY[0][0],posicionX[0][0]] = float(VectorAGraficar[1]) 
             self.plot2 = self.ax2.contourf(self.VectorX, self.VectorY, self.M2, 20, cmap='RdGy')
+#            divider = make_axes_locatable(self.ax2)
+#            cax = divider.append_axes("right", size="5%", pad=0.05)
+#            self.fig.colorbar(self.plot2,cax=cax)
         if self.ValoresAGraficar[2]==1:
-            self.M3[posicionX[0][0],posicionY[0][0]] = float(VectorAGraficar[2]) 
+            self.M3[posicionY[0][0],posicionX[0][0]] = float(VectorAGraficar[2]) 
             self.plot3 = self.ax3.contourf(self.VectorX, self.VectorY, self.M3, 20, cmap='RdGy')
+#            divider = make_axes_locatable(self.ax3)
+#            cax = divider.append_axes("right", size="5%", pad=0.05)
+#            self.fig.colorbar(self.plot3,cax=cax)
         if self.ValoresAGraficar[3]==1:
-            self.M4[posicionX[0][0],posicionY[0][0]] = float(VectorAGraficar[3]) 
+            self.M4[posicionY[0][0],posicionX[0][0]] = float(VectorAGraficar[3]) 
             self.plot4 = self.ax4.contourf(self.VectorX, self.VectorY, self.M4, 20, cmap='RdGy')
+#            divider = make_axes_locatable(self.ax4)
+#            cax = divider.append_axes("right", size="5%", pad=0.05)
+#            self.fig.colorbar(self.plot4,cax=cax)
         self.fig.canvas.draw()
         self.fig.canvas.flush_events() 
-
-#FALTAN VALORES INICIALES DE X y Z PARA ARMAR EL GRAFICO 3D
-
-    def PonerColorbars(self):
-        if self.ValoresAGraficar[0]==1:
-            plt.colorbar(self.plot1)
-        if self.ValoresAGraficar[1]==1:
-            plt.colorbar(self.plot2)
-        if self.ValoresAGraficar[2]==1:
-            plt.colorbar(self.plot3)
-        if self.ValoresAGraficar[3]==1:
-            plt.colorbar(self.plot4)
-
     def GuardarGrafico(self, nombreArchivo):
         self.fig.savefig(nombreArchivo, dpi=200)
     def Graficar(self, VectorAGraficar, posicionSMC, posicionMono):
@@ -605,10 +603,9 @@ class Programa():
         
             def IniciarMedicion():
                 ejeX = variable.get()
-                print(ejeX)
                 ValoresAGraficar = (Var1.get(),Var2.get(),Var3.get(),Var4.get())
-                print(ValoresAGraficar)
                 self.grafico = Grafico(ValoresAGraficar,0,ejeX)
+                self.experimento.grafico = self.grafico
                 VectorPosicionInicialSMC_mm = np.zeros(numeroDeSubintervalos)
                 VectorPosicionFinalSMC_mm = np.zeros(numeroDeSubintervalos)
                 VectorPasoSMC_mm = np.zeros(numeroDeSubintervalos)
@@ -655,7 +652,10 @@ class Programa():
                     
                     
                 tiempoDeMedicion = str(self.CalcularTiempoDeMedicionALambdaFija(numeroDeConstantesDeTiempo,longitudDeOndaFija_nm,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm))
-                print(tiempoDeMedicion)
+#                global t 
+#                t = th.Thread(target=CorriendoExperimento)
+#                t.do_run = True
+#                t.start()
                 raizMedicion = tk.Tk()
                 raizMedicion.title('Pump and Probe Software - Midiendo a Lambda Fija')
                 raizMedicion.geometry('1000x1000')   
@@ -665,7 +665,6 @@ class Programa():
                 canvas.get_tk_widget().grid(row=1,column=0)
                 canvas.draw()
                 raizMedicion.update()
-                self.experimento.grafico = self.grafico
 #                def CorriendoExperimento():
                 self.experimento.MedicionALambdaFija(nombreArchivo,numeroDeConstantesDeTiempo,longitudDeOndaFija_nm,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm)
                 nombreGrafico = nombreArchivo.replace('.csv','')
@@ -676,17 +675,12 @@ class Programa():
                     raizMedicion.destroy()    
                 botonFinalizar = tk.Button(raizMedicion, text="Finalizar", command=Finalizar)
                 botonFinalizar.grid(column=1, row=2)
-#                global t 
-#                t = th.Thread(target=CorriendoExperimento)
-#                t.do_run = True
-#                t.start()
 #                def CancelarMedicion():
 #                    t.do_run = False
 #                    t.join()
 #                    raizMedicion.destroy()
 #                botonCancelarMedicion = tk.Button(raizMedicion, text="Cancelar", command=CancelarMedicion)
-#                botonCancelarMedicion.grid(column=1, row=0)
-                
+#                botonCancelarMedicion.grid(column=1, row=0)                
                 raizMedicion.mainloop()              
             botonIniciarMedicion = tk.Button(raiz1, text="Iniciar Medicion", command=IniciarMedicion)
             botonIniciarMedicion.grid(column=1, row=22)
@@ -1349,6 +1343,7 @@ class Programa():
                     
                     
                 self.grafico = Grafico(ValoresAGraficar,2,ejeX,VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
+                self.experimento.grafico = self.grafico
                 
                 tiempoDeMedicion = str(self.CalcularTiempoDeMedicionCompleta(numeroDeConstantesDeTiempo,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm,VectorLongitudDeOndaInicial_nm,VectorLongitudDeOndaFinal_nm,VectorPasoMono_nm))
                 raizMedicion = tk.Tk()
@@ -1362,9 +1357,7 @@ class Programa():
                 canvas.draw()
                 raizMedicion.update()
                 #BOTON CANCELAR MEDICION
-                self.experimento.grafico = self.grafico
                 self.experimento.MedicionCompleta(nombreArchivo,numeroDeConstantesDeTiempo,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm,VectorLongitudDeOndaInicial_nm,VectorLongitudDeOndaFinal_nm,VectorPasoMono_nm)
-#                self.grafico.PonerColorbars()
                 nombreGrafico = nombreArchivo.replace('.csv','')
                 self.grafico.GuardarGrafico(nombreGrafico)
                 labelEstado = tk.Label(raizMedicion, text="Medicion Finalizada. El archivo ha sido guardado con el nombre: " + nombreArchivo)
