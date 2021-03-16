@@ -34,7 +34,7 @@ class SMC():
             time.sleep(1)
             self.address.write(b'1TS\r\n')
             time.sleep(2)
-            lectura = ''
+            lectura = 'a'
             lecturaTotal = ''
             while lectura != '\n' and lectura != '': 
                 time.sleep(1)
@@ -43,10 +43,11 @@ class SMC():
                 lectura = lectura.decode('windows-1252')
                 print(lectura)
                 lecturaTotal = lecturaTotal + lectura
-            if any(x in lecturaTotal for x in estadosReady) and 'TS' in lecturaTotal:
+            if 'TS' in lecturaTotal:
                 valor = 1
-                self.posicion = self.LeerPosicion()
-                return
+                if any(x in lecturaTotal for x in estadosReady):
+                    self.posicion = abs(round(self.LeerPosicion(),5))
+                    return
         self.address.write(b'1RS\r\n')
         time.sleep(7)
         self.address.write(b'1PW1\r\n')
@@ -62,7 +63,7 @@ class SMC():
             time.sleep(1)
             self.address.write(b'1TS\r\n')
             time.sleep(2)
-            lectura = ''
+            lectura = 'a'
             lecturaTotal = ''
             while lectura != '\n' and lectura != '': 
                 time.sleep(1)
@@ -79,7 +80,7 @@ class SMC():
         valor = -1
         while valor == -1:
             time.sleep(2)
-            lectura = ''
+            lectura = 'a'
             lecturaTotal = ''
             while lectura != '\n' and lectura != '': 
                 time.sleep(1)
@@ -92,7 +93,7 @@ class SMC():
             if 'TH' in lecturaTotal:
                 a = lecturaTotal.split('\r')
                 b = a[0]
-                c = b.split(' ')
+                c = b.split('TH')
                 d = c[len(c)-1]
                 return float(d)
             self.address.write(b'1TH\r\n')

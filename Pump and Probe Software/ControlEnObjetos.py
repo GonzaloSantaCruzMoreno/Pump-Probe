@@ -32,10 +32,30 @@ class SMC():
                 rtscts = False,
                 dsrdtr = False)
         self.puerto = puerto
-        self.posicion = 0
+        self.posicion = 0 # Solo para inicializar la variable. Al configurar se lee la posición.
         self.velocidadMmPorSegundo = 0.16
         self.ConfigurarSMC()
     def ConfigurarSMC(self):    
+        valor = -1
+        estadosReady = ['32','33','34']
+        while valor == -1:
+            time.sleep(1)
+            self.address.write(b'1TS\r\n')
+            time.sleep(2)
+            lectura = 'a'
+            lecturaTotal = ''
+            while lectura != '\n' and lectura != '': 
+                time.sleep(1)
+                lectura = self.address.read()
+                print(lectura)
+                lectura = lectura.decode('windows-1252')
+                print(lectura)
+                lecturaTotal = lecturaTotal + lectura
+            if 'TS' in lecturaTotal:
+                valor = 1
+                if any(x in lecturaTotal for x in estadosReady):
+                    self.posicion = abs(round(self.LeerPosicion(),5))
+                    return
         self.address.write(b'1RS\r\n')
         time.sleep(7)
         self.address.write(b'1PW1\r\n')
@@ -46,12 +66,14 @@ class SMC():
         time.sleep(2)
         self.address.write(b'1OR\r\n')
         time.sleep(2)
-        self.address.write(b'1TS\r\n')
         valor = -1
         while valor == -1:
-            lectura = ''
+            time.sleep(1)
+            self.address.write(b'1TS\r\n')
+            time.sleep(2)
+            lectura = 'a'
             lecturaTotal = ''
-            while lectura != '\n' and lectura != '\x05': 
+            while lectura != '\n' and lectura != '': 
                 time.sleep(1)
                 lectura = self.address.read()
                 print(lectura)
@@ -59,8 +81,30 @@ class SMC():
                 print(lectura)
                 lecturaTotal = lecturaTotal + lectura
             valor = lecturaTotal.find('32')
+        self.posicion = 0
+    def LeerPosicion(self):
+        self.address.write(b'1TH\r\n')
+        time.sleep(1)
+        valor = -1
+        while valor == -1:
             time.sleep(2)
-            self.address.write(b'1TS\r\n')
+            lectura = 'a'
+            lecturaTotal = ''
+            while lectura != '\n' and lectura != '': 
+                time.sleep(1)
+                lectura = self.address.read()
+                print(lectura)
+                lectura = lectura.decode('windows-1252')
+                print(lectura)
+                lecturaTotal = lecturaTotal + lectura
+            print(lecturaTotal)
+            if 'TH' in lecturaTotal:
+                a = lecturaTotal.split('\r')
+                b = a[0]
+                c = b.split('TH')
+                d = c[len(c)-1]
+                return float(d)
+            self.address.write(b'1TH\r\n')
     def Mover(self, PosicionSMC_mm): 
         comando = '1PA' + str(PosicionSMC_mm) + '\r\n'
         self.address.write(comando.encode())
@@ -90,9 +134,11 @@ class Monocromador():
                 rtscts = False,
                 dsrdtr = False)
         self.puerto = puerto
-        self.posicion = self.leerPosicion()
         self.velocidadNmPorSegundo = 9
         self.ConfigurarMonocromador()
+        self.posicion = self.leerPosicion()
+        if self.posicion < 400:
+            self.Mover(400)    
     def leerPosicion(self):
         self.address.write(b'#CL?\r3\r')
         time.sleep(1)
@@ -103,22 +149,26 @@ class Monocromador():
             lecturaTotal = ''
             while lectura != '\n':
                 lectura = self.address.read()
-                lectura = lectura.decode('windows-1252')
+                print(lectura)
+                lectura = lectura.decode('utf-8')
+                print(lectura)
                 lecturaTotal = lecturaTotal + lectura
                 time.sleep(0.8)
             valor = lecturaTotal.find('CL?')
         lecturaSpliteada = lecturaTotal.split('\r')
         lecturaSpliteadaBis = lecturaSpliteada[0].split(' ')
-        posicionEnString = lecturaSpliteadaBis[len(lecturaSpliteadaBis)-1]
+        lecturaSpliteadaBisBis = lecturaSpliteadaBis[len(lecturaSpliteadaBis)-1]
+        lecturaSpliteadaBisBisBis = lecturaSpliteadaBisBis.split('!!')
+        posicionEnString = lecturaSpliteadaBisBisBis[0]
         if posicionEnString[len(posicionEnString)-3] == '.':
             posicionEnString = posicionEnString.split('.')[0]
+            print(posicionEnString)
         posicionEnNm = float(posicionEnString)
         return posicionEnNm
     def ConfigurarMonocromador(self): # AGREGAR SETEO DE MULT Y OFFSET PARA CAMBIAR DE RED
         comando = '#SLM\r3\r'
         self.address.write(comando.encode())
-        time.sleep(5)
-        self.Mover(400)
+        time.sleep(3)
     def Mover(self, LongitudDeOnda_nm): 
         comando = '#MCL\r3\r' + str(LongitudDeOnda_nm) + '\r'
         self.address.write(comando.encode())
@@ -129,8 +179,9 @@ class Monocromador():
         if (LongitudDeOnda_nm-self.posicion) == 0:
             time.sleep(1)
         else:
-            TiempoMonocromador = abs(LongitudDeOnda_nm-self.posicion)/(self.velocidadNmPorSegundo) + 2.5
+            TiempoMonocromador = abs(LongitudDeOnda_nm-self.posicion)/(self.velocidadNmPorSegundo) + 5
         return TiempoMonocromador
+
         
 #%%%
     
@@ -201,16 +252,15 @@ class Grafico():
         if TipoDeMedicion == 0:
             if ValoresAGraficar[0]==1:
                 self.ax1 = self.fig.add_subplot(221)    
-                plt.title('X')
+                plt.title('\u03BB = ' + str(longitudDeOndaFija_nm) + ' nm')
                 if ejeX == 'Distancia':
                     plt.xlabel('Posición de la plataforma de retardo (mm)')
                 else:
                     plt.xlabel('Desfasaje temporal (ps)')
                 plt.ylabel('X')
-                plt.legend('\u03BB = ' + str(longitudDeOndaFija_nm) + ' nm')
             if ValoresAGraficar[1]==1:
                 self.ax2 = self.fig.add_subplot(222)   
-                plt.title('Y')
+                plt.title('\u03BB = ' + str(longitudDeOndaFija_nm) + ' nm')
                 if ejeX == 'Distancia':
                     plt.xlabel('Posición de la plataforma de retardo (mm)')
                 else:
@@ -219,7 +269,7 @@ class Grafico():
                 plt.legend('\u03BB = ' + str(longitudDeOndaFija_nm) + ' nm')
             if ValoresAGraficar[2]==1:
                 self.ax3 = self.fig.add_subplot(223)   
-                plt.title('R')
+                plt.title('\u03BB = ' + str(longitudDeOndaFija_nm) + ' nm')
                 if ejeX == 'Distancia':
                     plt.xlabel('Posición de la plataforma de retardo (mm)')
                 else:
@@ -228,7 +278,7 @@ class Grafico():
                 plt.legend('\u03BB = ' + str(longitudDeOndaFija_nm) + ' nm')
             if ValoresAGraficar[3]==1:
                 self.ax4 = self.fig.add_subplot(224)   
-                plt.title('\u03B8')
+                plt.title('\u03BB = ' + str(longitudDeOndaFija_nm) + ' nm')
                 if ejeX == 'Distancia':
                     plt.xlabel('Posición de la plataforma de retardo (mm)')
                 else:
@@ -238,28 +288,24 @@ class Grafico():
         if TipoDeMedicion == 1:
             if ValoresAGraficar[0]==1:
                 self.ax1 = self.fig.add_subplot(221)    
-                plt.title('X')
+                plt.title('Posición = ' + str(posicionFijaSMC_mm) + ' mm')
                 plt.xlabel('Longitud de onda (nm)')
                 plt.ylabel('X')
-                plt.legend('Posición = ' + str(posicionFijaSMC_mm) + ' mm')
             if ValoresAGraficar[1]==1:
                 self.ax2 = self.fig.add_subplot(222)   
-                plt.title('Y')
+                plt.title('Posición = ' + str(posicionFijaSMC_mm) + ' mm')
                 plt.xlabel('Longitud de onda (nm)')
                 plt.ylabel('Y')
-                plt.legend('Posición = ' + str(posicionFijaSMC_mm) + ' mm')
             if ValoresAGraficar[2]==1:
                 self.ax3 = self.fig.add_subplot(223)   
-                plt.title('R')
+                plt.title('Posición = ' + str(posicionFijaSMC_mm) + ' mm')
                 plt.xlabel('Longitud de onda (nm)')
                 plt.ylabel('R')
-                plt.legend('Posición = ' + str(posicionFijaSMC_mm) + ' mm')
             if ValoresAGraficar[3]==1:
                 self.ax4 = self.fig.add_subplot(224)   
-                plt.title('\u03B8')
+                plt.title('Posición = ' + str(posicionFijaSMC_mm) + ' mm')
                 plt.xlabel('Longitud de onda (nm)')
                 plt.ylabel('\u03B8')                 
-                plt.legend('Posición = ' + str(posicionFijaSMC_mm) + ' mm')
         if TipoDeMedicion == 2:   #Para el gráfico 3D; X es el vector de posiciones del SMC e Y del Monocromador.
             if ValoresAGraficar[0]==1:
                 self.ax1 = self.fig.add_subplot(221)    
@@ -422,7 +468,7 @@ class Experimento():
         self.nombreArchivo = nombreArchivo
         self.numeroDeConstantesDeTiempo = numeroDeConstantesDeTiempo
         self.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)
-        self.mono.Mover(longitudDeOndaFija_nm)
+#        self.mono.Mover(longitudDeOndaFija_nm)
         for i in range(0,len(VectorPosicionInicialSMC_mm)):
 #            if t.do_run == False:
 #                return
@@ -453,7 +499,7 @@ class Experimento():
         self.nombreArchivo = nombreArchivo
         self.numeroDeConstantesDeTiempo = numeroDeConstantesDeTiempo
         self.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)
-        self.smc.Mover(posicionFijaSMC_mm)
+#        self.smc.Mover(posicionFijaSMC_mm)
         for i in range(0,len(VectorLongitudDeOndaInicial_nm)):
             self.mono.Mover(VectorLongitudDeOndaInicial_nm[i])
             if i==0:
@@ -466,7 +512,7 @@ class Experimento():
                 self.GrabarCSV(vectorDeStringsDeDatos)
             numeroDePasos = abs(int((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i]))
             for j in range(0,numeroDePasos):
-                self.mono.Mover(VectorPasoMono_nm[i]+self.mono.posicion)
+                self.mono.Mover(round(VectorPasoMono_nm[i]+self.mono.posicion,4))
                 vectorDeStringsDeDatos = self.Adquirir()
                 self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
                 self.GrabarCSV(vectorDeStringsDeDatos)
@@ -558,6 +604,8 @@ class Programa():
     
         def SiguienteDeLambdaFija():
             numeroDeSubintervalos = int(textoNumeroDeSubintervalos.get())
+            longitudDeOndaFija_nm = float(textoLongitudDeOndaFija.get())            
+            self.experimento.mono.Mover(longitudDeOndaFija_nm)
             labelTituloInicial = tk.Label(raiz1, text="Ingresar datos en milímetros: desde 0 a 25")
             labelTituloInicial.grid(column=0, row=5)
             labelTituloInicial = tk.Label(raiz1, text="Posicion Inicial")
@@ -690,7 +738,6 @@ class Programa():
             def IniciarMedicion():
                 nombreArchivo = textoNombreArchivo.get()
                 numeroDeConstantesDeTiempo = int(textoNumeroDeConstantesDeTiempo.get())
-                longitudDeOndaFija_nm = float(textoLongitudDeOndaFija.get())
                 ejeX = variable.get()
                 ValoresAGraficar = (Var1.get(),Var2.get(),Var3.get(),Var4.get())
                 self.grafico = Grafico(ValoresAGraficar,0,ejeX,longitudDeOndaFija_nm=longitudDeOndaFija_nm)
@@ -747,7 +794,7 @@ class Programa():
 #                t.start()
                 raizMedicion = tk.Tk()
                 raizMedicion.title('Pump and Probe Software - Midiendo a Lambda Fija')
-                raizMedicion.geometry('1000x1000')   
+                raizMedicion.geometry('1400x1000')   
                 labelEstado = tk.Label(raizMedicion, text="Realizando la medicion. Tiempo estimado: " + tiempoDeMedicion + ' segundos')
                 labelEstado.grid(column=0, row=0)
                 canvas = FigureCanvasTkAgg(self.grafico.fig, master=raizMedicion)
@@ -894,7 +941,9 @@ class Programa():
         
         def SiguienteDePosicionFijaSMC():
             numeroDeSubintervalos = int(textoNumeroDeSubintervalos.get())
-            labelTituloInicial = tk.Label(raiz2, text="Ingresar en milímetros:\n desde 0 a 25")
+            posicionFijaSMC_mm = float(textoPosicionFijaSMC.get())
+            self.experimento.smc.Mover(posicionFijaSMC_mm)
+            labelTituloInicial = tk.Label(raiz2, text="Ingresar en nanómetros:\n desde 200 a 1200")
             labelTituloInicial.grid(column=0, row=5)
             labelTituloInicial = tk.Label(raiz2, text="Posicion Inicial")
             labelTituloInicial.grid(column=0, row=5, sticky=tk.E)
@@ -1014,7 +1063,6 @@ class Programa():
             def IniciarMedicion():
                 nombreArchivo = textoNombreArchivo.get()
                 numeroDeConstantesDeTiempo = int(textoNumeroDeConstantesDeTiempo.get())
-                posicionFijaSMC_mm = float(textoPosicionFijaSMC.get())
                 ValoresAGraficar = (Var1.get(),Var2.get(),Var3.get(),Var4.get())
                 self.grafico = Grafico(ValoresAGraficar,1,0,posicionFijaSMC_mm = posicionFijaSMC_mm)
                 VectorLongitudDeOndaInicial_nm = np.zeros(numeroDeSubintervalos)
@@ -1130,7 +1178,7 @@ class Programa():
             numeroDeSubintervalosSMC = int(textoNumeroDeSubintervalosSMC.get())
             numeroDeSubintervalosMono = int(textoNumeroDeSubintervalosMono.get())
             
-            labelTituloInicialMono = tk.Label(raiz3, text="Ingresar datos en nanómetros:\n desde 400 a 1000")
+            labelTituloInicialMono = tk.Label(raiz3, text="Ingresar datos en nanómetros:\n desde 200 a 1200")
             labelTituloInicialMono.grid(column=0, row=5)
             labelTituloInicialMono = tk.Label(raiz3, text="Longitud de \n Onda Inicial")
             labelTituloInicialMono.grid(column=0, row=6, sticky=tk.E)

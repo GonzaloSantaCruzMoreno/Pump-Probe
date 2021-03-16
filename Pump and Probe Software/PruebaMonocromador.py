@@ -41,15 +41,20 @@ class Monocromador():
             lecturaTotal = ''
             while lectura != '\n':
                 lectura = self.address.read()
+                print(lectura)
                 lectura = lectura.decode('windows-1252')
+                print(lectura)
                 lecturaTotal = lecturaTotal + lectura
                 time.sleep(0.8)
             valor = lecturaTotal.find('CL?')
         lecturaSpliteada = lecturaTotal.split('\r')
         lecturaSpliteadaBis = lecturaSpliteada[0].split(' ')
-        posicionEnString = lecturaSpliteadaBis[len(lecturaSpliteadaBis)-1]
+        lecturaSpliteadaBisBis = lecturaSpliteadaBis[len(lecturaSpliteadaBis)-1]
+        lecturaSpliteadaBisBisBis = lecturaSpliteadaBisBis.split('!!')
+        posicionEnString = lecturaSpliteadaBisBisBis[0]
         if posicionEnString[len(posicionEnString)-3] == '.':
             posicionEnString = posicionEnString.split('.')[0]
+            print(posicionEnString)
         posicionEnNm = float(posicionEnString)
         return posicionEnNm
     def ConfigurarMonocromador(self): # AGREGAR SETEO DE MULT Y OFFSET PARA CAMBIAR DE RED
