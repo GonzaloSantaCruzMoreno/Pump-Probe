@@ -88,18 +88,9 @@ class SMC():
         valor = -1
         while valor == -1:
             time.sleep(2)
-            lectura = 'a'
-            lecturaTotal = ''
-            while lectura != '\n' and lectura != '': 
-                time.sleep(1)
-                lectura = self.address.read()
-                print(lectura)
-                lectura = lectura.decode('windows-1252')
-                print(lectura)
-                lecturaTotal = lecturaTotal + lectura
-            print(lecturaTotal)
-            if 'TH' in lecturaTotal:
-                a = lecturaTotal.split('\r')
+            lectura = self.LeerBuffer()
+            if 'TH' in lectura:
+                a = lectura.split('\r')
                 b = a[0]
                 c = b.split('TH')
                 d = c[len(c)-1]
@@ -118,7 +109,16 @@ class SMC():
         else:
             TiempoSMC = abs(PosicionSMC_mm-self.posicion)/self.velocidadMmPorSegundo + 1
         return TiempoSMC
-        
+    def LeerBuffer(self):
+        lectura = 'a'
+        lecturaTotal = ''
+        while lectura != '\n' and lectura != '': 
+            time.sleep(0.3)
+            lectura = self.address.read()
+            print(lectura)
+            lectura = lectura.decode('windows-1252')
+            lecturaTotal = lecturaTotal + lectura
+        return lecturaTotal        
 #%%%
         
 class Monocromador():
@@ -468,27 +468,20 @@ class Experimento():
         self.nombreArchivo = nombreArchivo
         self.numeroDeConstantesDeTiempo = numeroDeConstantesDeTiempo
         self.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)
-#        self.mono.Mover(longitudDeOndaFija_nm)
         for i in range(0,len(VectorPosicionInicialSMC_mm)):
 #            if t.do_run == False:
 #                return
             self.smc.Mover(VectorPosicionInicialSMC_mm[i])
             if i==0:
-                vectorDeStringsDeDatos = self.Adquirir()
-                self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
-                self.GrabarCSV(vectorDeStringsDeDatos)
+                self.AdquirirGraficarYGrabarCSV()
             if i>0 and VectorPosicionInicialSMC_mm[i] != VectorPosicionFinalSMC_mm[i-1]:
-                vectorDeStringsDeDatos = self.Adquirir()
-                self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
-                self.GrabarCSV(vectorDeStringsDeDatos)
+                self.AdquirirGraficarYGrabarCSV()
             numeroDePasos = abs(int((VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])/VectorPasoSMC_mm[i]))
             for j in range(0,numeroDePasos):
 #                if t.do_run == False:
 #                    return
                 self.smc.Mover(VectorPasoSMC_mm[i]+self.smc.posicion)
-                vectorDeStringsDeDatos = self.Adquirir()
-                self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
-                self.GrabarCSV(vectorDeStringsDeDatos)
+                self.AdquirirGraficarYGrabarCSV()
     def MedicionAPosicionFijaSMC(self,
                             nombreArchivo,
                             numeroDeConstantesDeTiempo,
@@ -499,35 +492,16 @@ class Experimento():
         self.nombreArchivo = nombreArchivo
         self.numeroDeConstantesDeTiempo = numeroDeConstantesDeTiempo
         self.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)
-#        self.smc.Mover(posicionFijaSMC_mm)
         for i in range(0,len(VectorLongitudDeOndaInicial_nm)):
             self.mono.Mover(VectorLongitudDeOndaInicial_nm[i])
             if i==0:
-                vectorDeStringsDeDatos = self.Adquirir()
-                self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
-                self.GrabarCSV(vectorDeStringsDeDatos)
+                self.AdquirirGraficarYGrabarCSV()
             if i>0 and VectorLongitudDeOndaInicial_nm[i] != VectorLongitudDeOndaFinal_nm[i-1]:
-                vectorDeStringsDeDatos = self.Adquirir()
-                self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
-                self.GrabarCSV(vectorDeStringsDeDatos)
+                self.AdquirirGraficarYGrabarCSV()
             numeroDePasos = abs(int((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i]))
             for j in range(0,numeroDePasos):
                 self.mono.Mover(round(VectorPasoMono_nm[i]+self.mono.posicion,4))
-                vectorDeStringsDeDatos = self.Adquirir()
-                self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
-                self.GrabarCSV(vectorDeStringsDeDatos)
-    def GrabarCSV(self, vectorDeStringsDeDatos):
-        with open(self.nombreArchivo, 'a') as csvfile:
-            filewriter = csv.writer(csvfile, delimiter=',')
-            filewriter.writerow(vectorDeStringsDeDatos)
-    def Adquirir(self):
-        time.sleep(self.lockin.TiempoDeIntegracionTotal)
-        a = self.lockin.address.query("SNAP?1,2{,3,4,5,9}") # X,Y,R,THETA,AUX1,FREC
-        a = a.replace('\n','')
-        a = a + ',' + str(self.smc.posicion) + ',' + str(self.mono.posicion)
-        b = a.split(',')
-        return b
-
+                self.AdquirirGraficarYGrabarCSV()
     def MedicionCompleta(self, 
                          nombreArchivo,
                          numeroDeConstantesDeTiempo,
@@ -547,22 +521,31 @@ class Experimento():
                 for k in range(0,len(VectorPosicionInicialSMC_mm)):
                     self.smc.Mover(VectorPosicionInicialSMC_mm[k])
                     if k==0:
-                        vectorDeStringsDeDatos = self.Adquirir()
-                        self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
-                        self.GrabarCSV(vectorDeStringsDeDatos)
+                        self.AdquirirGraficarYGrabarCSV()
                     if k>0 and VectorPosicionInicialSMC_mm[k] != VectorPosicionFinalSMC_mm[k-1]:
-                        vectorDeStringsDeDatos = self.Adquirir()
-                        self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
-                        self.GrabarCSV(vectorDeStringsDeDatos)
+                        self.AdquirirGraficarYGrabarCSV()
                     numeroDePasosSMC = abs(int((VectorPosicionFinalSMC_mm[k]-VectorPosicionInicialSMC_mm[k])/VectorPasoSMC_mm[k]))
                     for l in range(0,numeroDePasosSMC):
                         self.smc.Mover(VectorPasoSMC_mm[k]+self.smc.posicion)
-                        vectorDeStringsDeDatos = self.Adquirir()
-                        self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
-                        self.GrabarCSV(vectorDeStringsDeDatos)
+                        self.AdquirirGraficarYGrabarCSV()
                 if j<numeroDePasosMono:
                     self.mono.Mover(VectorPasoMono_nm[i] + self.mono.posicion)
-        
+    def AdquirirGraficarYGrabarCSV(self):
+        vectorDeStringsDeDatos = self.Adquirir()
+        self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
+        self.GrabarCSV(vectorDeStringsDeDatos)
+    def GrabarCSV(self, vectorDeStringsDeDatos):
+        with open(self.nombreArchivo, 'a') as csvfile:
+            filewriter = csv.writer(csvfile, delimiter=',')
+            filewriter.writerow(vectorDeStringsDeDatos)
+    def Adquirir(self):
+        time.sleep(self.lockin.TiempoDeIntegracionTotal)
+        a = self.lockin.address.query("SNAP?1,2{,3,4,5,9}") # X,Y,R,THETA,AUX1,FREC
+        a = a.replace('\n','')
+        a = a + ',' + str(self.smc.posicion) + ',' + str(self.mono.posicion)
+        b = a.split(',')
+        return b
+
 #%%%
        
 class Programa():     
