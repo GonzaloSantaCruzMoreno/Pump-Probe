@@ -39,7 +39,7 @@ class Monocromador():
             lectura = self.LeerBuffer()
             valor = lectura.find('CL?')        
         a = lectura.split('\r')[0]
-        b = a.split(' ')[len(a)-1]
+        b = a.split(' ')[len(a.split(' '))-1]
         c = b.split('!!')[0]
         posicionEnNm = float(c)
         return posicionEnNm

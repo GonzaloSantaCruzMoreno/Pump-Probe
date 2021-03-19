@@ -1,4 +1,6 @@
 import serial
+from serial.tools import list_ports
+from serial.tools import miniterm
 import pyvisa
 import time
 import csv

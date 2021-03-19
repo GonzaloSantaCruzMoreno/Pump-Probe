@@ -20,42 +20,32 @@ import threading as th
 global t
 
 #%%%%%%
-
 class SMC():
     def __init__(self):
         self.posicion = 0 # Solo para inicializar la variable. Al configurar se lee la posición.
         self.velocidadMmPorSegundo = 0.16
     def AsignarPuerto(self, puerto):
-#        self.address = serial.Serial(
-#                port = puerto,
-#                baudrate = 57600,
-#                bytesize = 8,
-#                stopbits = 1,
-#                parity = 'N',
-#                timeout = 1,
-#                xonxoff = False,
-#                rtscts = False,
-#                dsrdtr = False)
+        self.address = serial.Serial(
+                port = puerto,
+                baudrate = 57600,
+                bytesize = 8,
+                stopbits = 1,
+                parity = 'N',
+                timeout = 1,
+                xonxoff = True,
+                rtscts = False,
+                dsrdtr = False)
         self.puerto = puerto
     def Configurar(self):    
         valor = -1
         estadosReady = ['32','33','34']
         while valor == -1:
-            time.sleep(1)
             self.address.write(b'1TS\r\n')
-            time.sleep(2)
-            lectura = 'a'
-            lecturaTotal = ''
-            while lectura != '\n' and lectura != '': 
-                time.sleep(1)
-                lectura = self.address.read()
-                print(lectura)
-                lectura = lectura.decode('windows-1252')
-                print(lectura)
-                lecturaTotal = lecturaTotal + lectura
-            if 'TS' in lecturaTotal:
+            time.sleep(0.3)
+            lectura = self.LeerBuffer()
+            if 'TS' in lectura:
                 valor = 1
-                if any(x in lecturaTotal for x in estadosReady):
+                if any(x in lectura for x in estadosReady):
                     self.posicion = abs(round(self.LeerPosicion(),5))
                     return
         self.address.write(b'1RS\r\n')
@@ -70,34 +60,22 @@ class SMC():
         time.sleep(2)
         valor = -1
         while valor == -1:
-            time.sleep(1)
             self.address.write(b'1TS\r\n')
-            time.sleep(2)
-            lectura = 'a'
-            lecturaTotal = ''
-            while lectura != '\n' and lectura != '': 
-                time.sleep(1)
-                lectura = self.address.read()
-                print(lectura)
-                lectura = lectura.decode('windows-1252')
-                print(lectura)
-                lecturaTotal = lecturaTotal + lectura
-            valor = lecturaTotal.find('32')
+            time.sleep(0.3)
+            lectura = self.LeerBuffer()
+            if 'TS' in lectura:
+                valor = lectura.find('32')
         self.posicion = 0
     def LeerPosicion(self):
-        self.address.write(b'1TH\r\n')
-        time.sleep(1)
         valor = -1
         while valor == -1:
-            time.sleep(2)
+            self.address.write(b'1TH\r\n')
+            time.sleep(0.3)
             lectura = self.LeerBuffer()
             if 'TH' in lectura:
-                a = lectura.split('\r')
-                b = a[0]
-                c = b.split('TH')
-                d = c[len(c)-1]
-                return float(d)
-            self.address.write(b'1TH\r\n')
+                a = lectura.split('\r')[0]
+                b = a.split('TH')[len(a.split('TH'))-1]
+                return float(b)
     def Mover(self, PosicionSMC_mm): 
         comando = '1PA' + str(PosicionSMC_mm) + '\r\n'
         self.address.write(comando.encode())
@@ -115,67 +93,74 @@ class SMC():
         lectura = 'a'
         lecturaTotal = ''
         while lectura != '\n' and lectura != '': 
-            time.sleep(0.3)
+            time.sleep(0.1)
             lectura = self.address.read()
             print(lectura)
             lectura = lectura.decode('windows-1252')
             lecturaTotal = lecturaTotal + lectura
-        return lecturaTotal        
+        return lecturaTotal      
     def Identificar(self):
+        valor = -1
         b = False
+        while valor == -1:
+            self.address.write(b'1ID?\r\n')
+            time.sleep(0.3)
+            lectura = self.LeerBuffer()
+            if 'ID' in lectura:
+                valor = 1
+                if 'TRA25PPD' in lectura:
+                    b = True
         return b
     def Calibrar(self):
+        self.address.write(b'1RS\r\n')
+        time.sleep(7)
+        self.address.write(b'1PW1\r\n')
+        time.sleep(2)
+        self.address.write(b'1HT0\r\n')
+        time.sleep(2)
+        self.address.write(b'1PW0\r\n')
+        time.sleep(2)
+        self.address.write(b'1OR\r\n')
+        time.sleep(2)
         return
+    
 #%%%
         
 class SMS():
     def __init__(self):
-        self.velocidadNmPorSegundo = 9
+        self.address = serial.Serial(
+                port = None,
+                baudrate = 9600,
+                bytesize = 8,
+                stopbits = 1,
+                parity = 'N',
+                xonxoff = False,
+                rtscts = False,
+                dsrdtr = False)
+        self.velocidadNmPorSegundo = 9 
     def AsignarPuerto(self, puerto):
-#        self.address = serial.Serial(
-#                port = puerto,
-#                baudrate = 9600,
-#                bytesize = 8,
-#                stopbits = 1,
-#                parity = 'N',
-#                timeout = 1,
-#                xonxoff = False,
-#                rtscts = False,
-#                dsrdtr = False)
-        self.puerto = puerto        
+        self.address.port = puerto
+        self.puerto = puerto     
+        self.address.open()
     def LeerPosicion(self):
-        self.address.write(b'#CL?\r3\r')
-        time.sleep(1)
         valor = -1
-        lecturaTotal = ''
         while valor == -1:
-            lectura = ''
-            lecturaTotal = ''
-            while lectura != '\n':
-                lectura = self.address.read()
-                print(lectura)
-                lectura = lectura.decode('utf-8')
-                print(lectura)
-                lecturaTotal = lecturaTotal + lectura
-                time.sleep(0.8)
-            valor = lecturaTotal.find('CL?')
-        lecturaSpliteada = lecturaTotal.split('\r')
-        lecturaSpliteadaBis = lecturaSpliteada[0].split(' ')
-        lecturaSpliteadaBisBis = lecturaSpliteadaBis[len(lecturaSpliteadaBis)-1]
-        lecturaSpliteadaBisBisBis = lecturaSpliteadaBisBis.split('!!')
-        posicionEnString = lecturaSpliteadaBisBisBis[0]
-        if posicionEnString[len(posicionEnString)-3] == '.':
-            posicionEnString = posicionEnString.split('.')[0]
-            print(posicionEnString)
-        posicionEnNm = float(posicionEnString)
+            self.address.write(b'#CL?\r3\r')
+            time.sleep(1)
+            lectura = self.LeerBuffer()
+            valor = lectura.find('CL?')        
+        a = lectura.split('\r')[0]
+        b = a.split(' ')[len(a.split(' '))-1]
+        c = b.split('!!')[0]
+        posicionEnNm = float(c)
         return posicionEnNm
     def Configurar(self): # AGREGAR SETEO DE MULT Y OFFSET PARA CAMBIAR DE RED
         comando = '#SLM\r3\r'
         self.address.write(comando.encode())
-        time.sleep(3)
+        time.sleep(1)
         self.posicion = self.LeerPosicion()
         if self.posicion < 400:
-            self.Mover(400)    
+            self.Mover(400)   
     def Mover(self, LongitudDeOnda_nm): 
         comando = '#MCL\r3\r' + str(LongitudDeOnda_nm) + '\r'
         self.address.write(comando.encode())
@@ -186,22 +171,44 @@ class SMS():
         if (LongitudDeOnda_nm-self.posicion) == 0:
             time.sleep(1)
         else:
-            TiempoMonocromador = abs(LongitudDeOnda_nm-self.posicion)/(self.velocidadNmPorSegundo) + 5
+            TiempoMonocromador = abs(LongitudDeOnda_nm-self.posicion)/(self.velocidadNmPorSegundo) + 1
         return TiempoMonocromador
+    def LeerBuffer(self):
+        lectura = ''
+        lecturaTotal = ''
+        while lectura != '\n':
+            lectura = self.address.read()
+            print(lectura)
+            lectura = lectura.decode('windows-1252')
+            lecturaTotal = lecturaTotal + lectura
+            time.sleep(0.1)
+        return lecturaTotal
     def Identificar(self):
         b = False
+        valor = -1
+        while valor == -1:
+            self.address.write(b'#VR?\r')
+            time.sleep(1)
+            lectura = self.LeerBuffer()
+            if 'VR' in lectura:
+                valor = 1
+                if 'Version 3.03' in lectura:
+                    b =True
         return b
     def Calibrar(self):
+        self.address.write(b'#CAL\r3\r')
+        time.sleep(self.CalcularTiempoSleep(-87))
+        self.posicion = self.LeerPosicion()
         return
+    
 #%%%
     
 class LockIn():
     def AsignarPuerto(self, puerto):
         rm = pyvisa.ResourceManager()
         comando = 'GPIB0::' + puerto + '::INSTR'
-#        self.address = rm.open_resource(comando)
+        self.address = rm.open_resource(comando)
         self.puerto = puerto
-        
     def Configurar(self):
         self.address.write("OUTX1") #Setea en GPIB=1 o RSR232=0
         time.sleep(0.2)
@@ -240,6 +247,9 @@ class LockIn():
         return self.TiempoDeIntegracionTotal
     def Identificar(self):
         b = False
+        lectura = self.address.query("*IDN?")
+        if 'SR830' in lectura:
+            b = True
         return b
 
 #%%%        
@@ -261,7 +271,7 @@ class Grafico():
         self.y2 = list()
         self.y3 = list()
         self.y4 = list()   
-        self.fig = plt.figure(figsize=(12,10))
+        self.fig = plt.figure(figsize=(13,10))
         if TipoDeMedicion == 0:
             if ValoresAGraficar[0]==1:
                 self.ax1 = self.fig.add_subplot(221)    
@@ -473,14 +483,10 @@ class Experimento():
         self.lockin = LockIn()
     def MedicionALambdaFija(self,
                             nombreArchivo,
-                            numeroDeConstantesDeTiempo,
-                            longitudDeOndaFija_nm,
                             VectorPosicionInicialSMC_mm,
                             VectorPosicionFinalSMC_mm,
                             VectorPasoSMC_mm):
         self.nombreArchivo = nombreArchivo
-        self.numeroDeConstantesDeTiempo = numeroDeConstantesDeTiempo
-        self.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)
         for i in range(0,len(VectorPosicionInicialSMC_mm)):
 #            if t.do_run == False:
 #                return
@@ -497,14 +503,10 @@ class Experimento():
                 self.AdquirirGraficarYGrabarCSV()
     def MedicionAPosicionFijaSMC(self,
                             nombreArchivo,
-                            numeroDeConstantesDeTiempo,
-                            posicionFijaSMC_mm,
                             VectorLongitudDeOndaInicial_nm,
                             VectorLongitudDeOndaFinal_nm,
                             VectorPasoMono_nm):
         self.nombreArchivo = nombreArchivo
-        self.numeroDeConstantesDeTiempo = numeroDeConstantesDeTiempo
-        self.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)
         for i in range(0,len(VectorLongitudDeOndaInicial_nm)):
             self.mono.Mover(VectorLongitudDeOndaInicial_nm[i])
             if i==0:
@@ -517,7 +519,6 @@ class Experimento():
                 self.AdquirirGraficarYGrabarCSV()
     def MedicionCompleta(self, 
                          nombreArchivo,
-                         numeroDeConstantesDeTiempo,
                          VectorPosicionInicialSMC_mm,
                          VectorPosicionFinalSMC_mm,
                          VectorPasoSMC_mm,
@@ -525,8 +526,6 @@ class Experimento():
                          VectorLongitudDeOndaFinal_nm,
                          VectorPasoMono_nm):
         self.nombreArchivo = nombreArchivo
-        self.numeroDeConstantesDeTiempo = numeroDeConstantesDeTiempo
-        self.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)
         for i in range(0,len(VectorLongitudDeOndaInicial_nm)):
             self.mono.Mover(VectorLongitudDeOndaInicial_nm[i])
             numeroDePasosMono = abs(int((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i]))
@@ -567,8 +566,6 @@ class Programa():
         self.experimento = Experimento()
         self.Configuracion()
         self.PantallaPrincipal()
-        self.numeroDeConstantesDeTiempo = 50
-#            self.experimento.lockin.CalcularTiempoDeIntegracion(self.numeroDeConstantesDeTiempo)
     def Configuracion(self):        
         raizConfiguracion = tk.Tk()
         raizConfiguracion.title('Pump and Probe Software')
@@ -749,7 +746,7 @@ class Programa():
     def PantallaPrincipal(self):
         raiz = tk.Tk()
         raiz.title('Pump and Probe Software')
-        raiz.geometry('1400x1000')   
+        raiz.geometry('1300x825')   
         
         #MEDICION MANUAL#        
         
@@ -762,19 +759,20 @@ class Programa():
         
         def SetearNumeroDeConstantesDeTiempo():
             self.numeroDeConstantesDeTiempo = int(textoNumeroDeConstantesDeTiempo.get())
-#            self.experimento.lockin.CalcularTiempoDeIntegracion(self.numeroDeConstantesDeTiempo)
+            self.experimento.lockin.CalcularTiempoDeIntegracion(self.numeroDeConstantesDeTiempo)
         botonSetearNumeroDeConstantesDeTiempo = tk.Button(raiz, text="Setear", command=SetearNumeroDeConstantesDeTiempo)
         botonSetearNumeroDeConstantesDeTiempo.place(x=200, y=5)
+        SetearNumeroDeConstantesDeTiempo()
         
         labelPosicionSMC = tk.Label(raiz, text = 'Posición desde 0 hasta 25 (mm) (res: 0.0001) :')
         labelPosicionSMC.place(x=250, y=5)
         textoPosicionSMC = tk.Entry(raiz, width=5)
         textoPosicionSMC.place(x=493, y=7)
         textoPosicionSMC.delete(0, tk.END)
-#        textoPosicionSMC.insert(0, str(self.experimento.smc.posicion))
+        textoPosicionSMC.insert(0, str(self.experimento.smc.posicion))
         def IrALaPosicionSMC():
             comando = float(textoPosicionSMC.get())
-#            self.experimento.smc.Mover(comando)
+            self.experimento.smc.Mover(comando)
         botonIrALaPosicionSMC = tk.Button(raiz, text="Mover", command=IrALaPosicionSMC)
         botonIrALaPosicionSMC.place(x=532, y=5)
         
@@ -783,37 +781,41 @@ class Programa():
         textoPosicionMonocromador = tk.Entry(raiz, width=5)
         textoPosicionMonocromador.place(x=790, y=7)
         textoPosicionMonocromador.delete(0, tk.END)
-#        textoPosicionMonocromador.insert(0, str(self.experimento.mono.posicion))
+        textoPosicionMonocromador.insert(0, str(self.experimento.mono.posicion))
         def IrALaPosicionMonocromador():
             comando = float(textoPosicionMonocromador.get())
-#            self.experimento.mono.Mover(comando)
+            self.experimento.mono.Mover(comando)
         botonIrALaPosicionMonocromador = tk.Button(raiz, text="Mover", command=IrALaPosicionMonocromador)
         botonIrALaPosicionMonocromador.place(x=830, y=5)
 
         labelX = tk.Label(raiz, text = 'X')
         labelX.place(x=15, y=35)
-        textoX = tk.Entry(raiz, width=5)
+        textoX = tk.Entry(raiz, width=8)
         textoX.place(x=0, y=60)
         labelY = tk.Label(raiz, text = 'Y')
-        labelY.place(x=65, y=35)
-        textoY = tk.Entry(raiz, width=5)
-        textoY.place(x=50, y=60)
+        labelY.place(x=70, y=35)
+        textoY = tk.Entry(raiz, width=8)
+        textoY.place(x=55, y=60)
         labelR = tk.Label(raiz, text = 'R')
-        labelR.place(x=115, y=35)
-        textoR = tk.Entry(raiz, width=5)
-        textoR.place(x=100, y=60)
+        labelR.place(x=125, y=35)
+        textoR = tk.Entry(raiz, width=8)
+        textoR.place(x=110, y=60)
         labelTheta = tk.Label(raiz, text = '\u03B8')
-        labelTheta.place(x=165, y=35)
-        textoTheta = tk.Entry(raiz, width=5)
-        textoTheta.place(x=150, y=60)
+        labelTheta.place(x=180, y=35)
+        textoTheta = tk.Entry(raiz, width=8)
+        textoTheta.place(x=165, y=60)
         labelAuxIn = tk.Label(raiz, text = 'Aux')
-        labelAuxIn.place(x=200, y=35)
-        textoAuxIn = tk.Entry(raiz, width=5)
-        textoAuxIn.place(x=200, y=60)
+        labelAuxIn.place(x=220, y=35)
+        textoAuxIn = tk.Entry(raiz, width=8)
+        textoAuxIn.place(x=220, y=60)
         labelCocienteXConAuxIn = tk.Label(raiz, text = 'X/Aux')
-        labelCocienteXConAuxIn.place(x=250, y=35)
-        textoCocienteXConAuxIn = tk.Entry(raiz, width=5)
-        textoCocienteXConAuxIn.place(x=250, y=60)
+        labelCocienteXConAuxIn.place(x=275, y=35)
+        textoCocienteXConAuxIn = tk.Entry(raiz, width=8)
+        textoCocienteXConAuxIn.place(x=275, y=60)
+        labelFrecuencia = tk.Label(raiz, text = 'f')
+        labelFrecuencia.place(x=345, y=35)
+        textoFrecuencia = tk.Entry(raiz, width=8)
+        textoFrecuencia.place(x=330, y=60)
         
         def IniciarMedicion():
             global t
@@ -822,7 +824,7 @@ class Programa():
             t.start()
         def Medicion():
             while t.do_run == True:
-                vectorDeStringsDeDatos = np.random.rand(5)
+                vectorDeStringsDeDatos = self.experimento.Adquirir()
                 textoX.delete(0, tk.END)
                 textoX.insert(tk.END, vectorDeStringsDeDatos[0])
                 textoY.delete(0, tk.END)
@@ -833,6 +835,8 @@ class Programa():
                 textoTheta.insert(tk.END, vectorDeStringsDeDatos[3]) 
                 textoAuxIn.delete(0, tk.END)
                 textoAuxIn.insert(tk.END, vectorDeStringsDeDatos[4]) 
+                textoFrecuencia.delete(0, tk.END)
+                textoFrecuencia.insert(tk.END, vectorDeStringsDeDatos[5]) 
                 cociente = 0
                 if float(vectorDeStringsDeDatos[4]) != 0:
                     cociente = float(vectorDeStringsDeDatos[0])/float(vectorDeStringsDeDatos[4])
@@ -844,22 +848,22 @@ class Programa():
             t.do_run = False
         
         botonIniciarMedicion = tk.Button(raiz, text="Iniciar Medicion", command=IniciarMedicion)
-        botonIniciarMedicion.place(x=300, y=35)
+        botonIniciarMedicion.place(x=415, y=35)
         botonFrenarMedicion = tk.Button(raiz, text="Frenar Medicion", command=FrenarMedicion)
-        botonFrenarMedicion.place(x=300, y=60)
+        botonFrenarMedicion.place(x=415, y=60)
         
         #CONVERSOR#
         
         labelTituloConversor = tk.Label(raiz, text="Conversor de\n mm a fs")
-        labelTituloConversor.place(x=405, y=43)
+        labelTituloConversor.place(x=555, y=43)
         labelmm = tk.Label(raiz, text="mm")
-        labelmm.place(x=520, y=35)
+        labelmm.place(x=670, y=35)
         labelfs = tk.Label(raiz, text="fs")
-        labelfs.place(x=665, y=35)
+        labelfs.place(x=815, y=35)
         textomm = tk.Entry(raiz,width=15)
-        textomm.place(x=490, y=60)
+        textomm.place(x=640, y=60)
         textofs = tk.Entry(raiz,width=15)
-        textofs.place(x=635, y=60)
+        textofs.place(x=785, y=60)
         def ConvertirAfs():
             mm = textomm.get()
             fs = float(mm)*6666.666
@@ -871,9 +875,9 @@ class Programa():
             textomm.delete(0, tk.END)
             textomm.insert(tk.END, mm)
         botonConvertirAmm = tk.Button(raiz, text="<-", command=ConvertirAmm)
-        botonConvertirAmm.place(x=585, y=55)
+        botonConvertirAmm.place(x=735, y=55)
         botonConvertirAfs = tk.Button(raiz, text="->", command=ConvertirAfs)
-        botonConvertirAfs.place(x=610, y=55)
+        botonConvertirAfs.place(x=760, y=55)
         
         
         #BOTON CONFIGURACION#
@@ -940,21 +944,24 @@ class Programa():
                 VectorPasoSMC_mm[i] = float(textosPaso[i].get())
             nombreArchivo = textoNombreArchivo.get()
             ejeX = variable.get()
-            ValoresAGraficar = ([1,1,1,1])
-            self.grafico = Grafico(ValoresAGraficar,0,ejeX,longitudDeOndaFija_nm=0)
-#            self.experimento.grafico = self.grafico
-            tiempoDeMedicion = '0'
-#            tiempoDeMedicion = str(self.CalcularTiempoDeMedicionALambdaFija(self.numeroDeConstantesDeTiempo,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm))
-            labelEstado = tk.Label(raiz, text="Realizando la medicion. Tiempo estimado: " + tiempoDeMedicion + ' segundos')
+            ValoresAGraficar = ([1,1,1,1]) 
+            self.grafico = Grafico(ValoresAGraficar,0,ejeX,longitudDeOndaFija_nm=self.experimento.mono.posicion)
+            self.experimento.grafico = self.grafico
+            tiempoDeMedicion = int(self.CalcularTiempoDeMedicionALambdaFija(self.numeroDeConstantesDeTiempo,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm))
+            segundos = tiempoDeMedicion%60
+            TotalMinutos = int(tiempoDeMedicion/60)
+            minutos = TotalMinutos%60
+            horas = int(TotalMinutos/60)
+            labelEstado = tk.Label(raiz, text="Realizando la medicion. Tiempo estimado: " + str(horas) + ' h ' + str(minutos) + ' m ' + str(segundos) + ' s.')
             labelEstado.place(x=950, y=650)
             canvas = FigureCanvasTkAgg(self.grafico.fig, master=raiz)
             canvas.get_tk_widget().place(x=0,y=90)
             canvas.draw()
             raiz.update()
-#            self.experimento.MedicionALambdaFija(nombreArchivo,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm)
+            self.experimento.MedicionALambdaFija(nombreArchivo,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm)
             nombreGrafico = nombreArchivo.replace('.csv','')
             self.grafico.GuardarGrafico(nombreGrafico)
-            labelEstado = tk.Label(raiz, text="Medicion Finalizada. El archivo ha sido guardado con el nombre: " + nombreArchivo)
+            labelEstado = tk.Label(raiz, text="Medicion Finalizada. El archivo ha sido guardado con el\n nombre: " + nombreArchivo)
             labelEstado.place(x=950, y=675)                       
         botonMedirALambdaFija = tk.Button(raiz, text="Barrer", command=MedirALambdaFija)
         botonMedirALambdaFija.place(x=1075, y=305)
@@ -1011,21 +1018,24 @@ class Programa():
                 VectorLongitudDeOndaFinal_nm[i] = float(textosLongitudDeOndaFinal[i].get())
                 VectorPasoMono_nm[i] = float(textosPasoLongitudDeOnda[i].get())
             nombreArchivo = textoNombreArchivo.get()
-            tiempoDeMedicion = '0'
             ValoresAGraficar = ([1,1,1,1])
-            self.grafico = Grafico(ValoresAGraficar,1,0,posicionFijaSMC_mm = 0)
-#            self.experimento.grafico = self.grafico
-#            tiempoDeMedicion = str(self.CalcularTiempoDeMedicionAPosicionFijaSMC(self.numeroDeConstantesDeTiempo,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm))
-            labelEstado = tk.Label(raiz, text="Realizando la medicion. Tiempo estimado: " + tiempoDeMedicion + ' segundos')
+            self.grafico = Grafico(ValoresAGraficar,1,0,posicionFijaSMC_mm = self.experimento.smc.posicion)
+            self.experimento.grafico = self.grafico
+            tiempoDeMedicion = int(self.CalcularTiempoDeMedicionAPosicionFijaSMC(self.numeroDeConstantesDeTiempo,VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm))
+            segundos = tiempoDeMedicion%60
+            TotalMinutos = int(tiempoDeMedicion/60)
+            minutos = TotalMinutos%60
+            horas = int(TotalMinutos/60)
+            labelEstado = tk.Label(raiz, text="Realizando la medicion. Tiempo estimado: " + str(horas) + ' h ' + str(minutos) + ' m ' + str(segundos) + ' s.')
             labelEstado.place(x=950, y=650)
             canvas = FigureCanvasTkAgg(self.grafico.fig, master=raiz)
             canvas.get_tk_widget().place(x=0,y=90)
             canvas.draw()
-#            raizMedicion.update()
-#            self.experimento.MedicionAPosicionFijaSMC(nombreArchivo,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm)
+            raiz.update()
+            self.experimento.MedicionAPosicionFijaSMC(nombreArchivo,VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
             nombreGrafico = nombreArchivo.replace('.csv','')
-#            self.grafico.GuardarGrafico(nombreGrafico)
-            labelEstado = tk.Label(raiz, text="Medicion Finalizada. El archivo ha sido guardado con el nombre: " + nombreArchivo)
+            self.grafico.GuardarGrafico(nombreGrafico)
+            labelEstado = tk.Label(raiz, text="Medicion Finalizada. El archivo ha sido guardado con el\n nombre: " + nombreArchivo)
             labelEstado.place(x=950, y=675)    
         botonMedirAPosicionFija = tk.Button(raiz, text="Barrer", command=MedirAPosicionFija)
         botonMedirAPosicionFija.place(x=1075, y=525)
@@ -1065,25 +1075,32 @@ class Programa():
             ejeX = variable.get()
             ValoresAGraficar = ([1,1,1,1])
             nombreArchivo = textoNombreArchivo.get()
-            tiempoDeMedicion = '0'
             self.grafico = Grafico(ValoresAGraficar, 2, ejeX, VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
-#            self.experimento.grafico = self.grafico
-#            tiempoDeMedicion = str(self.CalcularTiempoDeMedicionCompleta(self.numeroDeConstantesDeTiempo,VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm))
-            labelEstado = tk.Label(raiz, text="Realizando la medicion. Tiempo estimado: " + tiempoDeMedicion + ' segundos')
+            self.experimento.grafico = self.grafico
+            tiempoDeMedicion = int(self.CalcularTiempoDeMedicionCompleta(self.numeroDeConstantesDeTiempo,VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm))
+            segundos = tiempoDeMedicion%60
+            TotalMinutos = int(tiempoDeMedicion/60)
+            minutos = TotalMinutos%60
+            horas = int(TotalMinutos/60)
+            labelEstado = tk.Label(raiz, text="Realizando la medicion. Tiempo estimado: " + str(horas) + ' h ' + str(minutos) + ' m ' + str(segundos) + ' s.')
             labelEstado.place(x=950, y=650)
             canvas = FigureCanvasTkAgg(self.grafico.fig, master=raiz)
             canvas.get_tk_widget().place(x=0,y=90)
             canvas.draw()
-#            raizMedicion.update()
-#            self.experimento.MedicionCompleta(nombreArchivo, VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
+            raiz.update()
+            self.experimento.MedicionCompleta(nombreArchivo, VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
             nombreGrafico = nombreArchivo.replace('.csv','')
-#            self.grafico.GuardarGrafico(nombreGrafico)
-            labelEstado = tk.Label(raiz, text="Medicion Finalizada. El archivo ha sido guardado con el nombre: " + nombreArchivo)
+            self.grafico.GuardarGrafico(nombreGrafico)
+            labelEstado = tk.Label(raiz, text="Medicion Finalizada. El archivo ha sido guardado con el\n nombre: " + nombreArchivo)
             labelEstado.place(x=950, y=675)    
         
         botonMedirCompletamente = tk.Button(raiz, text="Barrido doble", command=MedirCompletamente)
         botonMedirCompletamente.place(x=1075, y=605)
-        
+        def AlCerrar():
+            self.experimento.smc.address.close()
+            self.experimento.mono.address.close()
+            raiz.destroy()
+        raiz.protocol("WM_DELETE_WINDOW", AlCerrar)
         raiz.mainloop()
 
 programa = Programa()

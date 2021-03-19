@@ -19,6 +19,7 @@ global t
 
 #%%%%%%
 
+global t
 class SMC():
     def __init__(self,puerto):
         self.address = serial.Serial(
@@ -28,7 +29,7 @@ class SMC():
                 stopbits = 1,
                 parity = 'N',
                 timeout = 1,
-                xonxoff = False,
+                xonxoff = True,
                 rtscts = False,
                 dsrdtr = False)
         self.puerto = puerto
@@ -39,21 +40,13 @@ class SMC():
         valor = -1
         estadosReady = ['32','33','34']
         while valor == -1:
-            time.sleep(1)
+            time.sleep(0.3)
             self.address.write(b'1TS\r\n')
-            time.sleep(2)
-            lectura = 'a'
-            lecturaTotal = ''
-            while lectura != '\n' and lectura != '': 
-                time.sleep(1)
-                lectura = self.address.read()
-                print(lectura)
-                lectura = lectura.decode('windows-1252')
-                print(lectura)
-                lecturaTotal = lecturaTotal + lectura
-            if 'TS' in lecturaTotal:
+            time.sleep(0.3)
+            lectura = self.LeerBuffer()
+            if 'TS' in lectura:
                 valor = 1
-                if any(x in lecturaTotal for x in estadosReady):
+                if any(x in lectura for x in estadosReady):
                     self.posicion = abs(round(self.LeerPosicion(),5))
                     return
         self.address.write(b'1RS\r\n')
@@ -68,34 +61,23 @@ class SMC():
         time.sleep(2)
         valor = -1
         while valor == -1:
-            time.sleep(1)
+            time.sleep(0.3)
             self.address.write(b'1TS\r\n')
-            time.sleep(2)
-            lectura = 'a'
-            lecturaTotal = ''
-            while lectura != '\n' and lectura != '': 
-                time.sleep(1)
-                lectura = self.address.read()
-                print(lectura)
-                lectura = lectura.decode('windows-1252')
-                print(lectura)
-                lecturaTotal = lecturaTotal + lectura
-            valor = lecturaTotal.find('32')
+            time.sleep(0.3)
+            lectura = self.LeerBuffer()
+            if 'TS' in lectura:
+                valor = lectura.find('32')
         self.posicion = 0
     def LeerPosicion(self):
-        self.address.write(b'1TH\r\n')
-        time.sleep(1)
         valor = -1
         while valor == -1:
-            time.sleep(2)
+            self.address.write(b'1TH\r\n')
+            time.sleep(0.3)
             lectura = self.LeerBuffer()
             if 'TH' in lectura:
-                a = lectura.split('\r')
-                b = a[0]
-                c = b.split('TH')
-                d = c[len(c)-1]
-                return float(d)
-            self.address.write(b'1TH\r\n')
+                a = lectura.split('\r')[0]
+                b = a.split('TH')[len(a.split('TH'))-1]
+                return float(b)
     def Mover(self, PosicionSMC_mm): 
         comando = '1PA' + str(PosicionSMC_mm) + '\r\n'
         self.address.write(comando.encode())
@@ -119,6 +101,7 @@ class SMC():
             lectura = lectura.decode('windows-1252')
             lecturaTotal = lecturaTotal + lectura
         return lecturaTotal        
+       
 #%%%
         
 class Monocromador():
@@ -129,41 +112,26 @@ class Monocromador():
                 bytesize = 8,
                 stopbits = 1,
                 parity = 'N',
-                timeout = 1,
                 xonxoff = False,
                 rtscts = False,
                 dsrdtr = False)
         self.puerto = puerto
         self.velocidadNmPorSegundo = 9
         self.ConfigurarMonocromador()
-        self.posicion = self.leerPosicion()
+        self.posicion = self.LeerPosicion()
         if self.posicion < 400:
             self.Mover(400)    
-    def leerPosicion(self):
-        self.address.write(b'#CL?\r3\r')
-        time.sleep(1)
+    def LeerPosicion(self):
         valor = -1
-        lecturaTotal = ''
         while valor == -1:
-            lectura = ''
-            lecturaTotal = ''
-            while lectura != '\n':
-                lectura = self.address.read()
-                print(lectura)
-                lectura = lectura.decode('utf-8')
-                print(lectura)
-                lecturaTotal = lecturaTotal + lectura
-                time.sleep(0.8)
-            valor = lecturaTotal.find('CL?')
-        lecturaSpliteada = lecturaTotal.split('\r')
-        lecturaSpliteadaBis = lecturaSpliteada[0].split(' ')
-        lecturaSpliteadaBisBis = lecturaSpliteadaBis[len(lecturaSpliteadaBis)-1]
-        lecturaSpliteadaBisBisBis = lecturaSpliteadaBisBis.split('!!')
-        posicionEnString = lecturaSpliteadaBisBisBis[0]
-        if posicionEnString[len(posicionEnString)-3] == '.':
-            posicionEnString = posicionEnString.split('.')[0]
-            print(posicionEnString)
-        posicionEnNm = float(posicionEnString)
+            self.address.write(b'#CL?\r3\r')
+            time.sleep(1)
+            lectura = self.LeerBuffer()
+            valor = lectura.find('CL?')        
+        a = lectura.split('\r')[0]
+        b = a.split(' ')[len(a.split(' '))-1]
+        c = b.split('!!')[0]
+        posicionEnNm = float(c)
         return posicionEnNm
     def ConfigurarMonocromador(self): # AGREGAR SETEO DE MULT Y OFFSET PARA CAMBIAR DE RED
         comando = '#SLM\r3\r'
@@ -181,6 +149,16 @@ class Monocromador():
         else:
             TiempoMonocromador = abs(LongitudDeOnda_nm-self.posicion)/(self.velocidadNmPorSegundo) + 5
         return TiempoMonocromador
+    def LeerBuffer(self):
+        lectura = ''
+        lecturaTotal = ''
+        while lectura != '\n':
+            lectura = self.address.read()
+            print(lectura)
+            lectura = lectura.decode('windows-1252')
+            lecturaTotal = lecturaTotal + lectura
+            time.sleep(0.5)
+        return lecturaTotal
 
         
 #%%%
