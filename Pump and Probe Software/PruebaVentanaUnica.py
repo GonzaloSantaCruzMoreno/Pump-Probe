@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Mar 17 17:38:20 2021
-
-@author: Usuario
-"""
 
 import serial
 import pyvisa
@@ -850,7 +844,7 @@ class Programa():
             self.numeroDeMedicion = 1
             X = posicion[0]
             Y = posicion[1]
-            labelNombreArchivo = tk.Label(raiz, text="Nombre del archivo (Ej: datos2.csv) :")
+            labelNombreArchivo = tk.Label(raiz, text="Nombre del archivo :")
             labelNombreArchivo.place(x=X, y=Y)
             self.textoNombreArchivo = tk.Entry(raiz,width=15)
             self.textoNombreArchivo.place(x=X+200, y=Y)
@@ -894,132 +888,196 @@ class Programa():
             botonConvertirAmm.place(x=X+180, y=Y+12)
             botonConvertirAfs = tk.Button(raiz, text="->", command=ConvertirAfs)
             botonConvertirAfs.place(x=X+205, y=Y+12)
-                        
+    class PanelMedicionManual():
+        def __init__(self, raiz, posicion):
+            X = posicion[0]
+            Y = posicion[1]
+            labelX = tk.Label(raiz, text = 'X')
+            labelX.place(x=X+50, y=Y)
+            labelX.config(font=("Courier", 30))
+            textoX = tk.Entry(raiz, font=("Courier",20))
+            textoX.place(x=X, y=Y+35, height=45, width=130)
+            labelY = tk.Label(raiz, text = 'Y')
+            labelY.place(x=X+50, y=Y+85)
+            labelY.config(font=("Courier", 30))
+            textoY = tk.Entry(raiz, font=("Courier",20))
+            textoY.place(x=X, y=Y+120, height=45, width=130)
+            labelR = tk.Label(raiz, text = 'R')
+            labelR.place(x=X+50, y=Y+170)
+            labelR.config(font=("Courier", 30))
+            textoR = tk.Entry(raiz, font=("Courier",20))
+            textoR.place(x=X, y=Y+205, height=45, width=130)
+            labelTheta = tk.Label(raiz, text = '\u03B8')
+            labelTheta.place(x=X+50, y=Y+255)
+            labelTheta.config(font=("Courier", 30))
+            textoTheta = tk.Entry(raiz, font=("Courier",20))
+            textoTheta.place(x=X, y=Y+290, height=45, width=130)
+            labelAuxIn = tk.Label(raiz, text = 'Aux')
+            labelAuxIn.place(x=X+25, y=Y+340)
+            labelAuxIn.config(font=("Courier", 30))
+            textoAuxIn = tk.Entry(raiz, font=("Courier",20))
+            textoAuxIn.place(x=X, y=Y+375, height=45, width=130)
+            labelCocienteXConAuxIn = tk.Label(raiz, text = 'X/Aux')
+            labelCocienteXConAuxIn.place(x=X+5, y=Y+425)
+            labelCocienteXConAuxIn.config(font=("Courier", 30))
+            textoCocienteXConAuxIn = tk.Entry(raiz, font=("Courier",20))
+            textoCocienteXConAuxIn.place(x=X, y=Y+460, height=45, width=130)
+            labelFrecuencia = tk.Label(raiz, text = 'f')
+            labelFrecuencia.place(x=X+50, y=Y+510)
+            labelFrecuencia.config(font=("Courier", 30))
+            textoFrecuencia = tk.Entry(raiz, font=("Courier",20))
+            textoFrecuencia.place(x=X, y=Y+545, height=45, width=130)
+        
+            def IniciarMedicion():
+                global t
+                t = th.Thread(target=MedicionManual)
+                t.do_run = True
+                t.start()
+            def MedicionManual():
+                while t.do_run == True:
+                    vectorDeStringsDeDatos = self.experimento.Adquirir()
+                    textoX.delete(0, tk.END)
+                    textoX.insert(tk.END, str(round(float(vectorDeStringsDeDatos[0]), 6)))
+                    textoY.delete(0, tk.END)
+                    textoY.insert(tk.END, str(round(float(vectorDeStringsDeDatos[1]), 6)))
+                    textoR.delete(0, tk.END)
+                    textoR.insert(tk.END, str(round(float(vectorDeStringsDeDatos[2]), 6)))
+                    textoTheta.delete(0, tk.END)
+                    textoTheta.insert(tk.END, str(round(float(vectorDeStringsDeDatos[3]), 6)))
+                    textoAuxIn.delete(0, tk.END)
+                    textoAuxIn.insert(tk.END, str(round(float(vectorDeStringsDeDatos[4]), 6)))
+                    textoFrecuencia.delete(0, tk.END)
+                    textoFrecuencia.insert(tk.END, str(round(float(vectorDeStringsDeDatos[5]), 6))) 
+                    cociente = 0
+                    if float(vectorDeStringsDeDatos[4]) != 0:
+                        cociente = round(float(vectorDeStringsDeDatos[0])/float(vectorDeStringsDeDatos[4]), 6)
+                    else:
+                        cociente = float('inf')
+                    textoCocienteXConAuxIn.delete(0, tk.END)
+                    textoCocienteXConAuxIn.insert(tk.END, str(cociente)) 
+            def FrenarMedicion():
+                t.do_run = False
+        
+            botonIniciarMedicion = tk.Button(raiz, text="Iniciar", command=IniciarMedicion,font=("Courier", 20))
+            botonIniciarMedicion.place(x=X, y=Y+600, height=40, width=130)
+            botonFrenarMedicion = tk.Button(raiz, text="Frenar", command=FrenarMedicion,font=("Courier", 20))
+            botonFrenarMedicion.place(x=X, y=Y+640, height=40, width=130)
+    class PanelSeteoNumeroDeConstantesDeTiempo():
+        def __init__(self, raiz, posicion):
+            X = posicion[0]
+            Y = posicion[1]
+            labelNumeroDeConstantesDeTiempo = tk.Label(raiz, text = '# de ctes de tiempo (Lock In):')
+            labelNumeroDeConstantesDeTiempo.place(x=X, y=Y+5)
+            textoNumeroDeConstantesDeTiempo = tk.Entry(raiz, width=5)
+            textoNumeroDeConstantesDeTiempo.place(x=X+160, y=Y+7)
+            textoNumeroDeConstantesDeTiempo.delete(0, tk.END)
+            textoNumeroDeConstantesDeTiempo.insert(0, '1')
+        
+            def SetearNumeroDeConstantesDeTiempo():
+                try:
+                    numeroDeConstantesDeTiempo = int(textoNumeroDeConstantesDeTiempo.get())
+                except ValueError:
+                    Advertencia('El valor ingresado debe ser un número entero.')
+                programa.experimento.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)
+            botonSetearNumeroDeConstantesDeTiempo = tk.Button(raiz, text="Setear", command=SetearNumeroDeConstantesDeTiempo)
+            botonSetearNumeroDeConstantesDeTiempo.place(x=X+200, y=Y+5)
+    class PanelJoggingPlataforma():
+        def __init__(self, raiz, posicion):
+            X = posicion[0]
+            Y = posicion[1]
+            labelPosicionSMC = tk.Label(raiz, text = 'Retardo de 0 a 25 (mm) :')
+            labelPosicionSMC.place(x=X, y=Y+5)
+            labelPasoSMC = tk.Label(raiz, text = 'Paso (mm) (res: 0.0001) :')
+            labelPasoSMC.place(x=X, y=Y+50)
+            textoPosicionSMC = tk.Entry(raiz, font=("Courier",20))
+            textoPosicionSMC.place(x=X+150, y=Y+7, height=30, width=100)
+            textoPasoSMC = tk.Entry(raiz, width=5, font=("Courier",20))
+            textoPasoSMC.place(x=X+150, y=Y+50, height=30, width=100)
+            textoPosicionSMC.delete(0, tk.END)
+            textoPosicionSMC.insert(0, str(programa.experimento.smc.posicion))
+            textoPasoSMC.delete(0, tk.END)
+            textoPasoSMC.insert(0, '1')
+            def IrALaPosicionSMC():
+                comando = float(textoPosicionSMC.get())
+                programa.experimento.smc.Mover(comando)
+            def MoverHaciaAdelante():
+                comando = float(textoPasoSMC.get())
+                programa.experimento.smc.Mover(comando+programa.experimento.smc.posicion)
+            def MoverHaciaAtras():
+                comando = (-1)*float(textoPasoSMC.get())
+                programa.experimento.smc.Mover(comando+programa.experimento.smc.posicion)
+            botonIrALaPosicionSMC = tk.Button(raiz, text="Mover", command=IrALaPosicionSMC, font=("Courier",15))
+            botonIrALaPosicionSMC.place(x=X+255, y=Y+5, height=30, width=80)
+            botonMoverHaciaDelante = tk.Button(raiz, text="+", command=MoverHaciaAdelante, font=("Courier",15))
+            botonMoverHaciaDelante.place(x=X+255, y=Y+50, height=30, width=30)
+            botonMoverHaciaAtras = tk.Button(raiz, text="-", command=MoverHaciaAtras, font=("Courier",15))
+            botonMoverHaciaAtras.place(x=X+295, y=Y+50, height=30, width=30)
+    class PanelJoggingRedDeDifraccion():
+        def __init__(self, raiz, posicion):
+            X = posicion[0]
+            Y = posicion[1]
+            labelPosicionMonocromador = tk.Label(raiz, text = '\u03BB de 200 a 1200 (nm) :')
+            labelPosicionMonocromador.place(x=X, y=Y)
+            labelPasoMonocromador = tk.Label(raiz, text = 'Paso (mm) (res: 0.3125) :')
+            labelPasoMonocromador.place(x=X, y=Y+50)
+            textoPosicionMonocromador = tk.Entry(raiz, width=5, font=("Courier",20))
+            textoPosicionMonocromador.place(x=X+150, y=Y+7, height=30, width=100)
+            textoPasoMonocromador = tk.Entry(raiz, width=5, font=("Courier",20))
+            textoPasoMonocromador.place(x=X+150, y=Y+50, height=30, width=100)
+            textoPosicionMonocromador.delete(0, tk.END)
+            textoPosicionMonocromador.insert(0, str(programa.experimento.mono.posicion))
+            textoPasoMonocromador.delete(0, tk.END)
+            textoPasoMonocromador.insert(0, '1')
+            def IrALaPosicionMonocromador():
+                comando = float(textoPosicionMonocromador.get())
+                programa.experimento.mono.Mover(comando)
+            def MoverHaciaAdelante():
+                comando = float(textoPasoMonocromador.get())
+                programa.experimento.mono.Mover(comando+programa.experimento.mono.posicion)
+            def MoverHaciaAtras():
+                comando = (-1)*float(textoPasoMonocromador.get())
+                programa.experimento.mono.Mover(comando+programa.experimento.mono.posicion)
+            botonIrALaPosicionMonocromador = tk.Button(raiz, text="Mover", command=IrALaPosicionMonocromador, font=("Courier",15))
+            botonIrALaPosicionMonocromador.place(x=X+255, y=Y+5, height=30, width=80)
+            botonMoverHaciaDelante = tk.Button(raiz, text="+", command=MoverHaciaAdelante, font=("Courier",15))
+            botonMoverHaciaDelante.place(x=X+255, y=Y+50, height=30, width=30)
+            botonMoverHaciaAtras = tk.Button(raiz, text="-", command=MoverHaciaAtras, font=("Courier",15))
+            botonMoverHaciaAtras.place(x=X+295, y=Y+50, height=30, width=30)   
+
     def PantallaPrincipal(self):
         raiz = tk.Tk()
         raiz.title('Pump and Probe Software')
-        raiz.geometry('1300x825')   
+        raiz.geometry('1450x825')   
         
-        #GRAFICO#
+        # GRAFICO #
         
         self.grafico = Grafico()
         canvas = FigureCanvasTkAgg(self.grafico.fig, master=raiz)
-        canvas.get_tk_widget().place(x=0,y=90)
+        canvas.get_tk_widget().place(x=10,y=90)
         canvas.draw()
         
-        #MEDICION MANUAL#        
+        # SETEO DE NUMERO DE CONSTANTES DE TIEMPO DEL LOCK IN#        
         
-        labelNumeroDeConstantesDeTiempo = tk.Label(raiz, text = '# de ctes de tiempo (Lock In):')
-        labelNumeroDeConstantesDeTiempo.place(x=0, y=5)
-        textoNumeroDeConstantesDeTiempo = tk.Entry(raiz, width=5)
-        textoNumeroDeConstantesDeTiempo.place(x=160, y=7)
-        textoNumeroDeConstantesDeTiempo.delete(0, tk.END)
-        textoNumeroDeConstantesDeTiempo.insert(0, '1')
+        self.panelSeteoNumeroDeConstantesDeTiempo = self.PanelSeteoNumeroDeConstantesDeTiempo(raiz, (700, 10))
         
-        def SetearNumeroDeConstantesDeTiempo():
-            try:
-                numeroDeConstantesDeTiempo = int(textoNumeroDeConstantesDeTiempo.get())
-            except ValueError:
-                Advertencia('El valor ingresado debe ser un número entero.')
-            self.experimento.lockin.CalcularTiempoDeIntegracion(numeroDeConstantesDeTiempo)
-        botonSetearNumeroDeConstantesDeTiempo = tk.Button(raiz, text="Setear", command=SetearNumeroDeConstantesDeTiempo)
-        botonSetearNumeroDeConstantesDeTiempo.place(x=200, y=5)
+        # PANEL JOGGING DE LA PLATAFORMA #
         
-        labelPosicionSMC = tk.Label(raiz, text = 'Posición desde 0 hasta 25 (mm) (res: 0.0001) :')
-        labelPosicionSMC.place(x=250, y=5)
-        textoPosicionSMC = tk.Entry(raiz, width=5)
-        textoPosicionSMC.place(x=493, y=7)
-        textoPosicionSMC.delete(0, tk.END)
-        textoPosicionSMC.insert(0, str(self.experimento.smc.posicion))
-        def IrALaPosicionSMC():
-            comando = float(textoPosicionSMC.get())
-            self.experimento.smc.Mover(comando)
-        botonIrALaPosicionSMC = tk.Button(raiz, text="Mover", command=IrALaPosicionSMC)
-        botonIrALaPosicionSMC.place(x=532, y=5)
+        self.panelJoggingPlataforma = self.PanelJoggingPlataforma(raiz, (5, 5))
         
-        labelPosicionMonocromador = tk.Label(raiz, text = '\u03BB desde 200 hasta 1200 (nm) (res: 0.3125) :')
-        labelPosicionMonocromador.place(x=582, y=5)
-        textoPosicionMonocromador = tk.Entry(raiz, width=5)
-        textoPosicionMonocromador.place(x=790, y=7)
-        textoPosicionMonocromador.delete(0, tk.END)
-        textoPosicionMonocromador.insert(0, str(self.experimento.mono.posicion))
-        def IrALaPosicionMonocromador():
-            comando = float(textoPosicionMonocromador.get())
-            self.experimento.mono.Mover(comando)
-        botonIrALaPosicionMonocromador = tk.Button(raiz, text="Mover", command=IrALaPosicionMonocromador)
-        botonIrALaPosicionMonocromador.place(x=830, y=5)
-
-        labelX = tk.Label(raiz, text = 'X')
-        labelX.place(x=15, y=35)
-        textoX = tk.Entry(raiz, width=8)
-        textoX.place(x=0, y=60)
-        labelY = tk.Label(raiz, text = 'Y')
-        labelY.place(x=70, y=35)
-        textoY = tk.Entry(raiz, width=8)
-        textoY.place(x=55, y=60)
-        labelR = tk.Label(raiz, text = 'R')
-        labelR.place(x=125, y=35)
-        textoR = tk.Entry(raiz, width=8)
-        textoR.place(x=110, y=60)
-        labelTheta = tk.Label(raiz, text = '\u03B8')
-        labelTheta.place(x=180, y=35)
-        textoTheta = tk.Entry(raiz, width=8)
-        textoTheta.place(x=165, y=60)
-        labelAuxIn = tk.Label(raiz, text = 'Aux')
-        labelAuxIn.place(x=220, y=35)
-        textoAuxIn = tk.Entry(raiz, width=8)
-        textoAuxIn.place(x=220, y=60)
-        labelCocienteXConAuxIn = tk.Label(raiz, text = 'X/Aux')
-        labelCocienteXConAuxIn.place(x=275, y=35)
-        textoCocienteXConAuxIn = tk.Entry(raiz, width=8)
-        textoCocienteXConAuxIn.place(x=275, y=60)
-        labelFrecuencia = tk.Label(raiz, text = 'f')
-        labelFrecuencia.place(x=345, y=35)
-        textoFrecuencia = tk.Entry(raiz, width=8)
-        textoFrecuencia.place(x=330, y=60)
+        # PANEL JOGGING DE LA RED DE DIFRACCION #
         
-        def IniciarMedicion():
-            global t
-            t = th.Thread(target=MedicionManual)
-            t.do_run = True
-            t.start()
-        def MedicionManual():
-            while t.do_run == True:
-                vectorDeStringsDeDatos = self.experimento.Adquirir()
-                textoX.delete(0, tk.END)
-                textoX.insert(tk.END, vectorDeStringsDeDatos[0])
-                textoY.delete(0, tk.END)
-                textoY.insert(tk.END, vectorDeStringsDeDatos[1])
-                textoR.delete(0, tk.END)
-                textoR.insert(tk.END, vectorDeStringsDeDatos[2])
-                textoTheta.delete(0, tk.END)
-                textoTheta.insert(tk.END, vectorDeStringsDeDatos[3]) 
-                textoAuxIn.delete(0, tk.END)
-                textoAuxIn.insert(tk.END, vectorDeStringsDeDatos[4]) 
-                textoFrecuencia.delete(0, tk.END)
-                textoFrecuencia.insert(tk.END, vectorDeStringsDeDatos[5]) 
-                cociente = 0
-                if float(vectorDeStringsDeDatos[4]) != 0:
-                    cociente = float(vectorDeStringsDeDatos[0])/float(vectorDeStringsDeDatos[4])
-                else:
-                    cociente = float('inf')
-                textoCocienteXConAuxIn.delete(0, tk.END)
-                textoCocienteXConAuxIn.insert(tk.END, str(cociente)) 
-        def FrenarMedicion():
-            t.do_run = False
+        self.panelJoggingRedDeDifraccion = self.PanelJoggingRedDeDifraccion(raiz, (350, 5))
         
-        botonIniciarMedicion = tk.Button(raiz, text="Iniciar Medicion", command=IniciarMedicion)
-        botonIniciarMedicion.place(x=415, y=35)
-        botonFrenarMedicion = tk.Button(raiz, text="Frenar Medicion", command=FrenarMedicion)
-        botonFrenarMedicion.place(x=415, y=60)
+        # MEDICION MANUAL #
+        self.panelMedicionManual = self.PanelMedicionManual(raiz, (1275, 100))
         
         #CONVERSOR#
-        self.panelConversor = self.PanelConversor(raiz, (555,43))
+        self.panelConversor = self.PanelConversor(raiz, (700,43))
         
         #BOTON CONFIGURACION#
         fuente = font.Font(size=10)
         botonConfiguracion = tk.Button(raiz, text="Configuración", font=fuente, command=self.Configuracion, width=20, heigh=2)
-        botonConfiguracion.place(x=950, y=5)
+        botonConfiguracion.place(x=1050, y=5)
         
         
         #BARRIDOS#
@@ -1183,13 +1241,13 @@ class Programa():
         botonMedirAPosicionFija.place(x=1075, y=525)
                 
         # EJE X: TIEMPO O DISTANCIA#
-        self.panelEjeX = self.PanelEjeX(raiz, (950,480))
+        self.panelEjeX = self.PanelEjeX(raiz, (950,720))
         
         # VALORES A GRAFICAR #
-        self.panelValoresAGraficar = self.PanelValoresAGraficar(raiz, (950,500))
+        self.panelValoresAGraficar = self.PanelValoresAGraficar(raiz, (950,650))
 
         # NOMBRE ARCHIVO #
-        self.panelNombreArchivo = self.PanelNombreArchivo(raiz, (950, 575))
+        self.panelNombreArchivo = self.PanelNombreArchivo(raiz, (950, 760))
         
         
         #DOBLE BARRIDO#
