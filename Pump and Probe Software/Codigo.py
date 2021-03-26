@@ -10,21 +10,21 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import threading as th
 from datetime import date
-import os
+import os # os_exit(00) restartea el núcleo.
 
 global do_run
 do_run = True
 global t
-global thread
 global tiempoAgregadoMonocromador #Tiempo de espera por paso agregado para el monocromador.
 global tiempoAgregadoPlataforma # Tiempo de espera por paso agregado para la plataforma.
 tiempoAgregadoMonocromador = 1
 tiempoAgregadoPlataforma = 1
 
 #%%%%%%
+
 class SMC():
     def __init__(self):
-        self.address = serial.Serial(
+        self.address = serial.Serial( #Crea el puerto pero no lo abre.
                 port = None,
                 baudrate = 57600,
                 bytesize = 8,
@@ -34,6 +34,7 @@ class SMC():
                 xonxoff = True,
                 rtscts = False,
                 dsrdtr = False)
+        self.resolucion = 0.0001 # En mm. Es decir, una resolución de 0.1 micrómetro.
         self.posicion = 0 # Solo para inicializar la variable. Al configurar se lee la posición.
         self.velocidadMmPorSegundo = 0.16
     def AsignarPuerto(self, puerto):
@@ -47,12 +48,12 @@ class SMC():
         estadosReady = ['32','33','34']
         while valor == -1:
             self.address.write(b'1TS\r\n')
-            time.sleep(0.3)
+            time.sleep(0.1)
             lectura = self.LeerBuffer()
             if 'TS' in lectura:
                 valor = 1
                 if any(x in lectura for x in estadosReady):
-                    self.posicion = abs(round(self.LeerPosicion(),5))
+                    self.posicion = self.LeerPosicion()
                     return
         self.address.write(b'1RS\r\n')
         time.sleep(7)
@@ -67,7 +68,7 @@ class SMC():
         valor = -1
         while valor == -1:
             self.address.write(b'1TS\r\n')
-            time.sleep(0.3)
+            time.sleep(0.1)
             lectura = self.LeerBuffer()
             if 'TS' in lectura:
                 valor = lectura.find('32')
@@ -76,12 +77,12 @@ class SMC():
         valor = -1
         while valor == -1:
             self.address.write(b'1TH\r\n')
-            time.sleep(0.3)
+            time.sleep(0.1)
             lectura = self.LeerBuffer()
             if 'TH' in lectura:
                 a = lectura.split('\r')[0]
                 b = a.split('TH')[len(a.split('TH'))-1]
-                return float(b)
+                return abs(round(float(b),5))
     def Mover(self, PosicionSMC_mm): 
         comando = '1PA' + str(PosicionSMC_mm) + '\r\n'
         self.address.write(comando.encode())
@@ -91,7 +92,7 @@ class SMC():
     def CalcularTiempoSleep(self, PosicionSMC_mm):
         TiempoSMC = 0
         if (PosicionSMC_mm-self.posicion) == 0:
-            time.sleep(0.5)
+            time.sleep(0.1)
         else:
             TiempoSMC = abs(PosicionSMC_mm-self.posicion)/self.velocidadMmPorSegundo + tiempoAgregadoPlataforma
         return TiempoSMC
@@ -106,18 +107,17 @@ class SMC():
             lecturaTotal = lecturaTotal + lectura
         return lecturaTotal      
     def Identificar(self):
-        valor = -1
         b = False
         i=0
-        while valor == -1 and i < 5:
-            i += 1
+        while i < 4:
             self.address.write(b'1ID?\r\n')
-            time.sleep(0.3)
+            time.sleep(0.1)
             lectura = self.LeerBuffer()
             if 'ID' in lectura:
-                valor = 1
                 if 'TRA25PPD' in lectura:
                     b = True
+                    break
+            i += 1
         return b
     def Calibrar(self):
         self.address.write(b'1RS\r\n')
@@ -130,13 +130,14 @@ class SMC():
         time.sleep(2)
         self.address.write(b'1OR\r\n')
         time.sleep(2)
+        self.posicion = 0
         return
     
 #%%%
         
 class SMS():
     def __init__(self):
-        self.address = serial.Serial(
+        self.address = serial.Serial( #Crea el puerto, no lo abre.
                 port = None,
                 baudrate = 9600,
                 bytesize = 8,
@@ -146,6 +147,7 @@ class SMS():
                 xonxoff = False,
                 rtscts = False,
                 dsrdtr = True)
+        self.resolucion = 0.3125 # La resolución es la inversa del multiplicador.
         self.posicion = 0
         self.velocidadNmPorSegundo = 9 
     def AsignarPuerto(self, puerto):
@@ -154,6 +156,13 @@ class SMS():
         self.address.open()
     def CerrarPuerto(self):
         self.address.close()
+    def Configurar(self): # AGREGAR SETEO DE MULT Y OFFSET PARA CAMBIAR DE RED
+        comando = '#SLM\r3\r'
+        self.address.write(comando.encode())
+        time.sleep(1)
+        self.posicion = self.LeerPosicion()
+        if self.posicion < 400:
+            self.Mover(400)   
     def LeerPosicion(self):
         valor = -1
         while valor == -1:
@@ -165,14 +174,7 @@ class SMS():
         b = a.split(' ')[len(a.split(' '))-1]
         c = b.split('!!')[0]
         posicionEnNm = float(c)
-        return posicionEnNm
-    def Configurar(self): # AGREGAR SETEO DE MULT Y OFFSET PARA CAMBIAR DE RED
-        comando = '#SLM\r3\r'
-        self.address.write(comando.encode())
-        time.sleep(1)
-        self.posicion = self.LeerPosicion()
-        if self.posicion < 400:
-            self.Mover(400)   
+        return round(posicionEnNm,4)
     def Mover(self, LongitudDeOnda_nm): 
         comando = '#MCL\r3\r' + str(LongitudDeOnda_nm) + '\r'
         self.address.write(comando.encode())
@@ -197,22 +199,21 @@ class SMS():
         return lecturaTotal
     def Identificar(self):
         b = False
-        valor = -1
-        i = 1
-        while valor == -1 and i < 5:
-            i += 1
+        i = 0
+        while i < 4:
             self.address.write(b'#VR?\r')
             time.sleep(0.5)
             self.address.flush()
             lectura = self.LeerBuffer()
             if 'VR' in lectura:
-                valor = 1
                 if 'Version 3.03' in lectura:
                     b =True
+                    break
+            i += 1
         return b
     def Calibrar(self):
         self.address.write(b'#CAL\r3\r')
-        time.sleep(self.CalcularTiempoSleep(-87))
+        time.sleep(self.CalcularTiempoSleep(-87)/2)
         self.posicion = self.LeerPosicion()
         return
     
@@ -272,9 +273,11 @@ class LockIn():
 
 class Grafico(): 
     def __init__(self):
-        self.fig = plt.figure(figsize=(13,10))
+        self.fig = plt.figure(figsize=(18,12))
     def Configurar(self, valoresAGraficar, TipoDeMedicion, ejeX, VectorPosicionInicialSMC_mm = 0, VectorPosicionFinalSMC_mm = 0, VectorPasoSMC_mm = 0, VectorLongitudDeOndaInicial_nm = 0, VectorLongitudDeOndaFinal_nm = 0, VectorPasoMono_nm = 0, longitudDeOndaFija_nm = 0, posicionFijaSMC_mm = 0):
         self.fig.clear()
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
         self.TipoDeMedicion = TipoDeMedicion
         self.ValoresAGraficar = valoresAGraficar
         self.cantidadDeValoresAGraficar = valoresAGraficar.count(1)
@@ -283,59 +286,55 @@ class Grafico():
         self.ejeX = ejeX
         self.x = list()
         self.z = list()
-        self.VectorX = 0
+        self.VectorX_mm = 0
+        self.VectorX_ps = 0
         self.VectorY = 0
-        self.M1 = 0
-        self.M2 = 0
-        self.M3 = 0
-        self.M4 = 0
         self.listaDeMatrices = list()
+        self.listaDeGraficos = list()
         self.listaDePlots = list()
         self.listaDeColorbars = list()
-        self.y1 = list()
-        self.y2 = list()
-        self.y3 = list()
-        self.y4 = list()   
-        self.listaDeValoresAGraficar = list()
+        self.listaDeEjesY = list()  
+        self.diccionarioDeValoresAGraficar = dict()
+        if TipoDeMedicion == 0 or TipoDeMedicion == 1:
+            for i in range(0, self.cantidadDeValoresAGraficar):
+                self.listaDeEjesY.append(list())
         if TipoDeMedicion == 2:
             numeroDePasos = 0
-            self.VectorX = np.array(VectorPosicionInicialSMC_mm[0])
+            self.VectorX_mm = np.array(VectorPosicionInicialSMC_mm[0])
             for i in range(0,len(VectorPosicionInicialSMC_mm)):
                 if i>0 and VectorPosicionInicialSMC_mm[i] != VectorPosicionFinalSMC_mm[i-1]:
-                    self.VectorX = np.append(self.VectorX, VectorPosicionInicialSMC_mm[i])
-                numeroDePasos = int((VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])/VectorPasoSMC_mm[i])
+                    self.VectorX_mm = np.append(self.VectorX_mm, VectorPosicionInicialSMC_mm[i])
+                numeroDePasos = int(round((VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])/VectorPasoSMC_mm[i], 3))
                 for j in range(0,numeroDePasos):
-                    self.VectorX = np.append(self.VectorX, round(VectorPosicionInicialSMC_mm[i]+(j+1)*VectorPasoSMC_mm[i],6))
+                    self.VectorX_mm = np.append(self.VectorX_mm, round(VectorPosicionInicialSMC_mm[i]+(j+1)*VectorPasoSMC_mm[i],6))
+            if self.ejeX == 'Tiempo':
+                self.VectorX_ps = self.VectorX_mm*(2/3)*10
             numeroDePasos = 0
             self.VectorY = np.array(VectorLongitudDeOndaInicial_nm[0])
             for i in range(0,len(VectorLongitudDeOndaInicial_nm)):
                 if i>0 and VectorLongitudDeOndaInicial_nm[i] != VectorLongitudDeOndaFinal_nm[i-1]:
                     self.VectorY = np.append(self.VectorY, VectorLongitudDeOndaInicial_nm[i])
-                numeroDePasos = int((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i])
+                numeroDePasos = int(round((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i],3))
                 for j in range(0,numeroDePasos):
                     self.VectorY = np.append(self.VectorY, round(VectorLongitudDeOndaInicial_nm[i]+(j+1)*VectorPasoMono_nm[i],6))
-            if valoresAGraficar[0] == 1:
-                self.M1 = np.zeros((len(self.VectorY),len(self.VectorX)))
-            if valoresAGraficar[1] == 1:
-                self.M2 = np.zeros((len(self.VectorY),len(self.VectorX)))
-            if valoresAGraficar[2] == 1:
-                self.M3 = np.zeros((len(self.VectorY),len(self.VectorX)))
-            if valoresAGraficar[3] == 1:
-                self.M4 = np.zeros((len(self.VectorY),len(self.VectorX)))
-                
+            for i in range(0, self.cantidadDeValoresAGraficar):
+                self.listaDeMatrices.append(np.zeros((len(self.VectorY),len(self.VectorX))))
+        
+        
         if valoresAGraficar[0] == 1:
-            self.listaDeMatrices.append(self.M1)
-            self.listaDeValoresAGraficar.append('X')
+            self.diccionarioDeValoresAGraficar['X'] = 0
         if valoresAGraficar[1] == 1:
-            self.listaDeMatrices.append(self.M2)
-            self.listaDeValoresAGraficar.append('Y')
+            self.diccionarioDeValoresAGraficar['Y'] = 1
         if valoresAGraficar[2] == 1:
-            self.listaDeMatrices.append(self.M3)
-            self.listaDeValoresAGraficar.append('R')
+            self.diccionarioDeValoresAGraficar['R'] = 2
         if valoresAGraficar[3] == 1:
-            self.listaDeMatrices.append(self.M4)
-            self.listaDeValoresAGraficar.append('\u03B8')
-        self.listaDeGraficos = list()
+            self.diccionarioDeValoresAGraficar['\u03B8'] = 3
+        if valoresAGraficar[4] == 1:
+            self.diccionarioDeValoresAGraficar['X/AUX'] = 4
+        if valoresAGraficar[5] == 1:
+            self.diccionarioDeValoresAGraficar['R/AUX'] = 5
+        self.listaDeValoresAGraficar = list(self.diccionarioDeValoresAGraficar.values())
+        
         if self.cantidadDeValoresAGraficar == 1:
             self.listaDeGraficos.append(self.fig.add_subplot(111))
         if self.cantidadDeValoresAGraficar == 2:
@@ -350,11 +349,21 @@ class Grafico():
             self.listaDeGraficos.append(self.fig.add_subplot(222))
             self.listaDeGraficos.append(self.fig.add_subplot(223))
             self.listaDeGraficos.append(self.fig.add_subplot(224))
+        if self.cantidadDeValoresAGraficar == 5:
+            self.listaDeGraficos.append(self.fig.add_subplot(231))
+            self.listaDeGraficos.append(self.fig.add_subplot(232))
+            self.listaDeGraficos.append(self.fig.add_subplot(233))
+            self.listaDeGraficos.append(self.fig.add_subplot(234))
+            self.listaDeGraficos.append(self.fig.add_subplot(235))
+        if self.cantidadDeValoresAGraficar == 6:
+            self.listaDeGraficos.append(self.fig.add_subplot(231))
+            self.listaDeGraficos.append(self.fig.add_subplot(232))
+            self.listaDeGraficos.append(self.fig.add_subplot(233))
+            self.listaDeGraficos.append(self.fig.add_subplot(234))
+            self.listaDeGraficos.append(self.fig.add_subplot(235))
+            self.listaDeGraficos.append(self.fig.add_subplot(236))
         self.CrearGrafico(TipoDeMedicion)
         
-
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
     def CrearGrafico(self, TipoDeMedicion):
         if TipoDeMedicion == 0:
             for i in range(0,self.cantidadDeValoresAGraficar):
@@ -374,75 +383,56 @@ class Grafico():
                 self.listaDeGraficos[i].set_title(self.listaDeValoresAGraficar[i])
                 if self.ejeX == 'Distancia':
                     self.listaDeGraficos[i].set_xlabel('Retardo (mm)')
+                    self.listaDePlots.append(self.listaDeGraficos[i].contourf(self.VectorX_mm, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy'))
                 else:
                     self.listaDeGraficos[i].set_xlabel('Retardo (ps)')
+                    self.listaDePlots.append(self.listaDeGraficos[i].contourf(self.VectorX_ps, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy'))
                 self.listaDeGraficos[i].set_ylabel('Longitud de onda (nm)') 
-                self.listaDePlots.append(self.listaDeGraficos[i].contourf(self.VectorX, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy'))
-                print('entro')
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
+
     def GraficarALambdaFija(self, VectorAGraficar, posicionSMC, posicionMono):
         if self.ejeX == 'Distancia':
             self.x.append(posicionSMC)
         else:
-            self.x.append((posicionSMC)*(2/3)*10) # en picosegundos
-#            self.x.append((posicionSMC)*(2/3)*(10**(-11))) # en segundos   
-        self.listaDeArrays = list()
-        if self.ValoresAGraficar[0] == 1:
-            self.y1.append(float(VectorAGraficar[0]))
-            self.listaDeArrays.append(self.y1)
-        if self.ValoresAGraficar[1] == 1:
-            self.y2.append(float(VectorAGraficar[1]))
-            self.listaDeArrays.append(self.y2)
-        if self.ValoresAGraficar[2] == 1:
-            self.y3.append(float(VectorAGraficar[2]))
-            self.listaDeArrays.append(self.y3)
-        if self.ValoresAGraficar[3] == 1:
-            self.y4.append(float(VectorAGraficar[3]))
-            self.listaDeArrays.append(self.y4)
+            self.x.append((posicionSMC)*(2/3)*10) # en picosegundos  
         for i in range(0, self.cantidadDeValoresAGraficar):
-            self.listaDeGraficos[i].plot(self.x, self.listaDeArrays[i], 'c*')
+            if self.listaDeValoresAGraficar[i] != 4 and self.listaDeValoresAGraficar[i] != 5:
+                self.listaDeEjesY[i].append(float(VectorAGraficar[self.listaDeValoresAGraficar[i]]))
+            else:
+                if self.listaDeValoresAGraficar[i] == 4:
+                    self.listaDeEjesY[i].append(float(VectorAGraficar[0])/float(VectorAGraficar[4]))
+                elif self.listaDeValoresAGraficar[i] == 5:
+                    self.listaDeEjesY[i].append(float(VectorAGraficar[2])/float(VectorAGraficar[4]))
+            self.listaDeGraficos[i].plot(self.x, self.listaDeEjesY[i], 'c*')
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()   
     def GraficarAPosicionFija(self, VectorAGraficar, posicionSMC, posicionMono):
         self.x.append(posicionMono)
-        self.listaDeArrays = list()
-        if self.ValoresAGraficar[0] == 1:
-            self.y1.append(float(VectorAGraficar[0]))
-            self.listaDeArrays.append(self.y1)
-        if self.ValoresAGraficar[1] == 1:
-            self.y2.append(float(VectorAGraficar[1]))
-            self.listaDeArrays.append(self.y2)
-        if self.ValoresAGraficar[2] == 1:
-            self.y3.append(float(VectorAGraficar[2]))
-            self.listaDeArrays.append(self.y3)
-        if self.ValoresAGraficar[3] == 1:
-            self.y4.append(float(VectorAGraficar[3]))
-            self.listaDeArrays.append(self.y4)
-        for i in range(0, self.cantidadDeValoresAGraficar):
-            self.listaDeGraficos[i].plot(self.x, self.listaDeArrays[i], 'c*')
+        for i in range(0,self.cantidadDeValoresAGraficar):
+            if self.listaDeValoresAGraficar[i] != 4 and self.listaDeValoresAGraficar[i] != 5:
+                self.listaDeEjesY[i].append(float(VectorAGraficar[self.listaDeValoresAGraficar[i]]))
+            else:
+                if self.listaDeValoresAGraficar[i] == 4:
+                    self.listaDeEjesY[i].append(float(VectorAGraficar[0])/float(VectorAGraficar[4]))
+                elif self.listaDeValoresAGraficar[i] == 5:
+                    self.listaDeEjesY[i].append(float(VectorAGraficar[2])/float(VectorAGraficar[4]))
+            self.listaDeGraficos[i].plot(self.x, self.listaDeEjesY[i], 'c*')
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
     def GraficarCompletamente(self, VectorAGraficar, posicionSMC, posicionMono):
-        posicionX = np.where(self.VectorX == posicionSMC)
+        posicionX = np.where(self.VectorX_mm == posicionSMC)
         posicionY = np.where(self.VectorY == posicionMono)
-#        vectorX = self.VectorX*(2/3)*10 # en picosegundos
-
         if hasattr(self, 'listaDeColorbars'):
-            print(len(self.listaDeColorbars))
             for i in range(0,len(self.listaDeColorbars)):
                 self.listaDeColorbars[i].remove()
         self.listaDeColorbars = list()
-        if self.ValoresAGraficar[0]==1:
-            self.M1[posicionY[0][0],posicionX[0][0]] = float(VectorAGraficar[0]) 
-        if self.ValoresAGraficar[1]==1:
-            self.M2[posicionY[0][0],posicionX[0][0]] = float(VectorAGraficar[1]) 
-        if self.ValoresAGraficar[2]==1:
-            self.M3[posicionY[0][0],posicionX[0][0]] = float(VectorAGraficar[2]) 
-        if self.ValoresAGraficar[3]==1:
-            self.M4[posicionY[0][0],posicionX[0][0]] = float(VectorAGraficar[3]) 
-        
         for i in range(0, self.cantidadDeValoresAGraficar):
+            if self.listaDeValoresAGraficar[i] != 4 and self.listaDeValoresAGraficar[i] != 5:
+                self.listaDeMatrices[i][posicionY[0][0],posicionX[0][0]].append(float(VectorAGraficar[self.listaDeValoresAGraficar[i]]))
+            else:
+                if self.listaDeValoresAGraficar[i] == 4:
+                    self.listaDeMatrices[i][posicionY[0][0],posicionX[0][0]].append(float(VectorAGraficar[0])/float(VectorAGraficar[4]))
+                elif self.listaDeValoresAGraficar[i] == 5:
+                    self.listaDeMatrices[i][posicionY[0][0],posicionX[0][0]].append(float(VectorAGraficar[2])/float(VectorAGraficar[4]))
             self.listaDeGraficos[i].contourf(self.VectorX, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy')
             divider = make_axes_locatable(self.listaDeGraficos[i])
             cax = divider.append_axes("right", size="5%", pad=0.05)
@@ -558,12 +548,12 @@ class Experimento():
         b = a.split(',')
         return b
 
-#%%%
-
+#%%%%
+        
 class Advertencia():
     def __init__(self, texto):
         advertencia = tk.Tk()
-        advertencia.title('Error')
+        advertencia.title('Atención')
         advertencia.geometry('300x100')
         labelExplicacion = tk.Label(advertencia, text = texto)
         labelExplicacion.place(x=0, y=0)
@@ -576,8 +566,6 @@ class Medicion():
     def IniciarVentana(self, tiempoDeMedicion, tipoDeMedicion, experimento, nombreArchivo, VectorPosicionInicialSMC_mm=0, VectorPosicionFinalSMC_mm=0, VectorPasoSMC_mm=0, VectorLongitudDeOndaInicial_nm=0, VectorLongitudDeOndaFinal_nm=0, VectorPasoMono_nm=0):
         global do_run
         do_run = True
-
-
         self.midiendo = tk.Tk()
         self.midiendo.title('Midiendo')
         self.midiendo.geometry('300x100')
@@ -609,35 +597,25 @@ class Medicion():
             nombreGrafico = nombreArchivo.replace('.csv','')
             experimento.grafico.GuardarGrafico(nombreGrafico)         
             self.CambiarEstadoAFinalizado(nombreArchivo)  
-#        def IniciarThread():
-#            print('entro 1')
-#            thread = th.Thread(target=Medir)
-#            thread.do_run = True
-#            thread.start()
-#            print('entro 2')
         Medir()
-        
-
-
-        print('llego')
         self.midiendo.mainloop()
-
     def CambiarEstadoAFinalizado(self, nombreArchivo):
         self.botonFinalizar["state"]="normal"
         print('CambiarEstadoAFinalizado')
         self.labelEstado = tk.Label(self.midiendo, text="Medicion Finalizada. El archivo ha sido guardado con el\n nombre: " + nombreArchivo)
         self.labelEstado.place(x=0, y=0)                       
-
-class Programa():
-    
-    def __init__(self):
-        self.experimento = Experimento()
-        self.Configuracion(primeraVez=True)
-    def Configuracion(self, primeraVez=False):        
+class Configuracion():
+    def __init__(self, experimento, programa):
+        self.primeraVez = True
+        self.experimento = experimento
+        self.programa = programa
+        self.b1 = False
+        self.b2 = False
+        self.b3 = False    
+    def AbrirVentana(self):
         raizConfiguracion = tk.Tk()
         raizConfiguracion.title('Pump and Probe Software - Configuración')
         raizConfiguracion.geometry('550x200')
-
         def SetearPuertoSMC():
             try:
                 puertoSMC = int(textoSMC.get())
@@ -649,15 +627,13 @@ class Programa():
             except:
                 Advertencia('No se ha podido abrir el puerto serie.')
                 return
-            b = self.experimento.smc.Identificar() # Booleano
-            if b:
-                labelSMCReconocido = tk.Label(raizConfiguracion, text = 'Reconocido')
-                labelSMCReconocido.place(x=305, y=5)
+            self.b1 = self.experimento.smc.Identificar() # Booleano
+            if self.b1:
+                labelSMCReconocido.config(text = 'Reconocido')
                 botonInicializarSMC["state"]="normal"
                 botonCalibrarSMC["state"] = "normal"
             else:
-                labelSMCReconocido = tk.Label(raizConfiguracion, text = 'No reconocido')
-                labelSMCReconocido.place(x=305, y=5)
+                labelSMCReconocido.config(text = 'No reconocido')
                 self.experimento.smc.CerrarPuerto()
         def InicializarSMC():
             self.experimento.smc.Configurar()
@@ -671,11 +647,17 @@ class Programa():
         botonSetearPuertoSMC.place(x=260,y=5)
         botonInicializarSMC = tk.Button(raizConfiguracion, text = 'Inicializar', command = InicializarSMC)
         botonInicializarSMC.place(x=395,y=5)
-        botonInicializarSMC["state"] = "disabled"
         botonCalibrarSMC = tk.Button(raizConfiguracion, text = 'Calibrar', command = self.experimento.smc.Calibrar)
         botonCalibrarSMC.place(x=455, y=5)
-        botonCalibrarSMC["state"] = "disabled"
-                
+        if self.b1:
+            labelSMCReconocido = tk.Label(raizConfiguracion, text = 'Reconocido')
+            botonInicializarSMC["state"] = "normal"
+            botonCalibrarSMC["state"] = "normal"    
+        else:
+            labelSMCReconocido = tk.Label(raizConfiguracion)
+            botonInicializarSMC["state"] = "disabled"
+            botonCalibrarSMC["state"] = "disabled"                
+        labelSMCReconocido.place(x=305, y=5)
         def SetearPuertoSMS():
             try:
                 puertoSMS = int(textoMono.get())
@@ -689,13 +671,11 @@ class Programa():
                 return
             b = self.experimento.mono.Identificar() # Booleano
             if b:
-                labelSMSReconocido = tk.Label(raizConfiguracion, text = 'Reconocido')
-                labelSMSReconocido.place(x=305, y=30)
+                labelSMSReconocido.config(text = 'Reconocido')
                 botonInicializarSMS["state"]="normal"
                 botonCalibrarSMS["state"] = "normal"
             else:
-                labelSMSReconocido = tk.Label(raizConfiguracion, text = 'No reconocido')
-                labelSMSReconocido.place(x=305, y=30)
+                labelSMSReconocido.config(text = 'No reconocido')
                 self.experimento.mono.CerrarPuerto()
         def InicializarSMS():
             self.experimento.mono.Configurar()                
@@ -709,11 +689,19 @@ class Programa():
         botonSetearPuertoSMS.place(x=260,y=30)
         botonInicializarSMS = tk.Button(raizConfiguracion, text = 'Inicializar', command = InicializarSMS)
         botonInicializarSMS.place(x=395,y=30)
-        botonInicializarSMS["state"] = "disabled"
         botonCalibrarSMS = tk.Button(raizConfiguracion, text = 'Calibrar', command = self.experimento.mono.Calibrar)
         botonCalibrarSMS.place(x=455, y=30)
-        botonCalibrarSMS["state"] = "disabled"
-                
+        
+        if self.b2:
+            labelSMSReconocido = tk.Label(raizConfiguracion, text = 'Reconocido')
+            botonInicializarSMS["state"] = "normal"
+            botonCalibrarSMS["state"] = "normal"                
+        else:
+            labelSMSReconocido = tk.Label(raizConfiguracion)
+            botonInicializarSMS["state"] = "disabled"
+            botonCalibrarSMS["state"] = "disabled"                
+        labelSMSReconocido.place(x=305, y=30)
+        
         def SetearPuertoLockIn():
             try:
                 puertoLockIn = int(textoLockIn.get())
@@ -727,12 +715,10 @@ class Programa():
                 return
             b = self.experimento.lockin.Identificar() # Booleano
             if b:
-                labelLockInReconocido = tk.Label(raizConfiguracion, text = 'Reconocido')
-                labelLockInReconocido.place(x=305, y=55)
+                labelLockInReconocido.config(text = 'Reconocido')
                 botonInicializarLockIn["state"] = "normal"
             else:
-                labelLockInReconocido = tk.Label(raizConfiguracion, text = 'No reconocido')
-                labelLockInReconocido.place(x=305, y=55)
+                labelLockInReconocido.config(text = 'No reconocido')                
         def InicializarLockIn():
             self.experimento.lockin.Configurar()                        
         labelLockIn = tk.Label(raizConfiguracion, text = 'Puerto correspondiente al Lock-In: ')
@@ -745,114 +731,34 @@ class Programa():
         botonSetearPuertoLockIn.place(x=260,y=55)
         botonInicializarLockIn = tk.Button(raizConfiguracion, text = 'Inicializar', command = InicializarLockIn)
         botonInicializarLockIn.place(x=395,y=55)
-        botonInicializarLockIn["state"] = "disabled"
+        if self.b3:
+            labelLockInReconocido = tk.Label(raizConfiguracion, text='Reconocido')
+            botonInicializarLockIn["state"] = "normal"
+        else:
+            labelLockInReconocido = tk.Label(raizConfiguracion)
+            botonInicializarLockIn["state"] = "disabled"
+        labelLockInReconocido.place(x=305, y=55)
         def MenuPrincipal():
             raizConfiguracion.destroy()
-            self.PantallaPrincipal()
+            self.programa.PantallaPrincipal()
         def Salir():
-            raizConfiguracion.destroy()
-                    
-        if primeraVez:
+            raizConfiguracion.destroy()                    
+        if self.primeraVez:
             botonMenuPrincipal = tk.Button(raizConfiguracion, text = 'Continuar', command = MenuPrincipal)
             botonMenuPrincipal.place(x=200, y=100)
             botonSalir = tk.Button(raizConfiguracion, text = 'Salir', command = Salir)
             botonSalir.place(x=100, y=100)
+            self.primeraVez = False
         else:
             botonSalir = tk.Button(raizConfiguracion, text = 'Menu', command = Salir)
-            botonSalir.place(x=100, y=100)
-            
+            botonSalir.place(x=100, y=100)            
         raizConfiguracion.mainloop()
         
-    def MidiendoALambdaFija(self):
-        print('midiendoALambdaFija')
-    def MidiendoAPosicionFija(self):
-        print('midiendoAPosicionFija')
-    def MidiendoCompletamente(self):
-        print('midiendoCompletamente')
-    def CalcularTiempoDeMedicionALambdaFija(self,
-                                            VectorPosicionInicialSMC_mm,
-                                            VectorPosicionFinalSMC_mm,
-                                            VectorPasoSMC_mm):
-        TiempoDeMedicion = 0
-        CantidadDeMedicionesTotal = 0
-        TiempoDeDesplazamientoTotal = 0
-        TiempoDeDesplazamientoPorPaso = 0
-        TiempoMuerto = 0
-        TiempoMuerto = abs(VectorPosicionInicialSMC_mm[0]-self.experimento.smc.posicion)/self.experimento.smc.velocidadMmPorSegundo + tiempoAgregadoPlataforma
-        for i in range(0, len(VectorPosicionInicialSMC_mm)):
-            if i>0 and VectorPosicionInicialSMC_mm[i] != VectorPosicionFinalSMC_mm[i-1]:
-                TiempoMuerto = TiempoMuerto + abs(VectorPosicionInicialSMC_mm[i]-VectorPosicionFinalSMC_mm[i-1])/self.experimento.smc.velocidadMmPorSegundo + tiempoAgregadoPlataforma
-            CantidadDeMediciones = 0
-            CantidadDeMediciones = abs(VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])/VectorPasoSMC_mm[i]
-            TiempoDeDesplazamientoPorPaso = VectorPasoSMC_mm[i]/self.experimento.smc.velocidadMmPorSegundo + tiempoAgregadoPlataforma
-            TiempoDeDesplazamientoTotal = TiempoDeDesplazamientoTotal + CantidadDeMediciones*TiempoDeDesplazamientoPorPaso
-            CantidadDeMedicionesTotal = CantidadDeMedicionesTotal + CantidadDeMediciones
-        TiempoDeMedicion = CantidadDeMedicionesTotal*(self.experimento.lockin.TiempoDeIntegracionTotal) + TiempoDeDesplazamientoTotal + TiempoMuerto
-        return TiempoDeMedicion
-    
-    def CalcularTiempoDeMedicionAPosicionFijaSMC(self, 
-                                                 VectorLongitudDeOndaInicial_nm,
-                                                 VectorLongitudDeOndaFinal_nm,
-                                                 VectorPasoMono_nm):
-        TiempoDeMedicion = 0
-        CantidadDeMedicionesTotal = 0
-        TiempoDeDesplazamientoTotal = 0
-        TiempoDeDesplazamientoPorPaso = 0
-        TiempoMuerto = 0
-        TiempoMuerto = abs(VectorLongitudDeOndaInicial_nm[0]-self.experimento.mono.posicion)/self.experimento.mono.velocidadNmPorSegundo + tiempoAgregadoMonocromador
-        for i in range(0, len(VectorLongitudDeOndaInicial_nm)):
-            if i>0 and VectorLongitudDeOndaInicial_nm[i] != VectorLongitudDeOndaFinal_nm[i-1]:
-                TiempoMuerto = TiempoMuerto + abs(VectorLongitudDeOndaInicial_nm[i]-VectorLongitudDeOndaFinal_nm[i-1])/self.experimento.mono.velocidadNmPorSegundo + tiempoAgregadoMonocromador
-            CantidadDeMediciones = 0
-            CantidadDeMediciones = abs(VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i]
-            TiempoDeDesplazamientoPorPaso = VectorPasoMono_nm[i]/self.experimento.mono.velocidadNmPorSegundo + tiempoAgregadoMonocromador
-            TiempoDeDesplazamientoTotal = TiempoDeDesplazamientoTotal + CantidadDeMediciones*TiempoDeDesplazamientoPorPaso
-        TiempoDeMedicion = CantidadDeMedicionesTotal*(self.experimento.lockin.TiempoDeIntegracionTotal) + TiempoDeDesplazamientoTotal + TiempoMuerto
-        return TiempoDeMedicion    
-
-    def CalcularTiempoDeMedicionCompleta(self, 
-                                         VectorPosicionInicialSMC_mm,
-                                         VectorPosicionFinalSMC_mm,
-                                         VectorPasoSMC_mm,
-                                         VectorLongitudDeOndaInicial_nm,
-                                         VectorLongitudDeOndaFinal_nm,
-                                         VectorPasoMono_nm):
-        CantidadDeMovimientosSMCTotal = 0
-        TiempoDeDesplazamientoSMC = 0
-        TiempoDeDesplazamientoPorPaso = 0
-        TiempoDeDesplazamientoMono = 0
-        TiempoMuertoSMC = 0
-        TiempoMuertoMono = 0
-        CantidadDeMovimientosMonoTotal = 0
-        largoVectorSMC = len(VectorPosicionInicialSMC_mm)
-        TiempoSMCInicial = abs(VectorPosicionInicialSMC_mm[0]-self.experimento.smc.posicion)/self.experimento.smc.velocidadMmPorSegundo + tiempoAgregadoPlataforma
-        TiempoDeRetornoSMC = abs(VectorPosicionFinalSMC_mm[largoVectorSMC-1]-VectorPosicionInicialSMC_mm[0])/self.experimento.smc.velocidadMmPorSegundo + tiempoAgregadoPlataforma
-        TiempoMonocromadorInicial = abs(VectorLongitudDeOndaInicial_nm[0]-self.experimento.mono.posicion)/self.experimento.mono.velocidadNmPorSegundo + tiempoAgregadoMonocromador
-        for i in range(0, len(VectorPosicionInicialSMC_mm)):
-            if i>0 and VectorPosicionInicialSMC_mm[i] != VectorPosicionFinalSMC_mm[i-1]:
-                TiempoMuertoSMC = TiempoMuertoSMC + (VectorPosicionInicialSMC_mm[i]-VectorPosicionFinalSMC_mm[i-1])/self.experimento.smc.velocidadMmPorSegundo + tiempoAgregadoPlataforma
-            CantidadDeMovimientosSMC = 0
-            CantidadDeMovimientosSMC = abs(VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])/VectorPasoSMC_mm[i]
-            TiempoDeDesplazamientoPorPaso = VectorPasoSMC_mm[i]/self.experimento.smc.velocidadMmPorSegundo + tiempoAgregadoPlataforma
-            TiempoDeDesplazamientoSMC = TiempoDeDesplazamientoSMC + CantidadDeMovimientosSMC*TiempoDeDesplazamientoPorPaso
-        
-        TiempoSMC = TiempoDeDesplazamientoSMC + TiempoSMCInicial + TiempoMuertoSMC + TiempoDeRetornoSMC
-        
-        for j in range(0, len(VectorLongitudDeOndaInicial_nm)):
-            if j>0 and VectorLongitudDeOndaInicial_nm[i] != VectorLongitudDeOndaFinal_nm[i-1]:
-                TiempoMuertoMono = TiempoMuertoMono + abs(VectorLongitudDeOndaInicial_nm[j]-VectorLongitudDeOndaFinal_nm[j-1])/self.experimento.mono.velocidadNmPorSegundo + tiempoAgregadoMonocromador
-            CantidadDeMovimientosMono = 0
-            CantidadDeMovimientosMono = abs(VectorLongitudDeOndaFinal_nm[j]-VectorLongitudDeOndaInicial_nm[j])/VectorPasoMono_nm[j]
-            CantidadDeMovimientosMonoTotal = CantidadDeMovimientosMonoTotal + CantidadDeMovimientosMono
-            TiempoDeDesplazamientoPorPaso = VectorPasoMono_nm[j]/self.experimento.mono.velocidadNmPorSegundo + tiempoAgregadoMonocromador
-            TiempoDeDesplazamientoMono = TiempoDeDesplazamientoMono + CantidadDeMovimientosMono*TiempoDeDesplazamientoPorPaso
-        TiempoMonocromador = TiempoDeDesplazamientoMono + TiempoMonocromadorInicial + TiempoMuertoMono
-        TiempoSMCTotal = TiempoSMC*CantidadDeMovimientosMonoTotal
-        TiempoLockIn = CantidadDeMovimientosSMCTotal*CantidadDeMovimientosMonoTotal*(self.experimento.lockin.TiempoDeIntegracionTotal)
-        
-        TiempoTotal = TiempoMonocromador + TiempoSMCTotal + TiempoLockIn
-        
-        return TiempoTotal
+class Programa():    
+    def __init__(self):
+        self.experimento = Experimento()
+        self.configuracion = Configuracion(self.experimento, self)
+        self.configuracion.AbrirVentana()
     class PanelValoresAGraficar():
         def __init__(self, raiz, posicion):
             X = posicion[0]
@@ -868,8 +774,12 @@ class Programa():
             tk.Checkbutton(raiz, text='R', variable=self.Var3).place(x=X,y=Y+40)
             self.Var4 = tk.IntVar()
             tk.Checkbutton(raiz, text='\u03B8', variable=self.Var4).place(x=X+40,y=Y+40)
+            self.Var5 = tk.IntVar()
+            tk.Checkbutton(raiz, text='X/AUX', variable=self.Var5).place(x=X+80,y=Y+20)
+            self.Var6 = tk.IntVar()
+            tk.Checkbutton(raiz, text='R/AUX', variable=self.Var6).place(x=X+80,y=Y+40)
         def ObtenerValores(self):
-            return (self.Var1.get(), self.Var2.get(), self.Var3.get(), self.Var4.get())
+            return (self.Var1.get(), self.Var2.get(), self.Var3.get(), self.Var4.get(), self.Var5.get(), self.Var6.get())
     class PanelEjeX():
         def __init__(self, raiz, posicion):
             X = posicion[0]
@@ -920,12 +830,12 @@ class Programa():
             textofs.place(x=X+230, y=Y+17)
             def ConvertirAfs():
                 mm = textomm.get()
-                fs = float(mm)*6666.666
+                fs = round(float(mm)*6666.666,2)
                 textofs.delete(0, tk.END)
                 textofs.insert(tk.END, fs)
             def ConvertirAmm():
                 fs = textofs.get()
-                mm = float(fs)/6666.666
+                mm = round(float(fs)/6666.666,5)
                 textomm.delete(0, tk.END)
                 textomm.insert(tk.END, mm)
             botonConvertirAmm = tk.Button(raiz, text="<-", command=ConvertirAmm)
@@ -967,12 +877,16 @@ class Programa():
             labelCocienteXConAuxIn.config(font=("Courier", 30))
             textoCocienteXConAuxIn = tk.Entry(raiz, font=("Courier",20))
             textoCocienteXConAuxIn.place(x=X, y=Y+460, height=45, width=130)
+            labelCocienteRConAuxIn = tk.Label(raiz, text = 'R/Aux')
+            labelCocienteRConAuxIn.place(x=X+5, y=Y+510)
+            labelCocienteRConAuxIn.config(font=("Courier", 30))
+            textoCocienteRConAuxIn = tk.Entry(raiz, font=("Courier",20))
+            textoCocienteRConAuxIn.place(x=X, y=Y+545, height=45, width=130)
             labelFrecuencia = tk.Label(raiz, text = 'f')
-            labelFrecuencia.place(x=X+50, y=Y+510)
+            labelFrecuencia.place(x=X+50, y=Y+595)
             labelFrecuencia.config(font=("Courier", 30))
             textoFrecuencia = tk.Entry(raiz, font=("Courier",20))
-            textoFrecuencia.place(x=X, y=Y+545, height=45, width=130)
-        
+            textoFrecuencia.place(x=X, y=Y+630, height=45, width=130)
             def IniciarMedicion():
                 global t
                 t = th.Thread(target=MedicionManual)
@@ -993,20 +907,24 @@ class Programa():
                     textoAuxIn.insert(tk.END, str(round(float(vectorDeStringsDeDatos[4]), 6)))
                     textoFrecuencia.delete(0, tk.END)
                     textoFrecuencia.insert(tk.END, str(round(float(vectorDeStringsDeDatos[5]), 6))) 
-                    cociente = 0
+                    cocienteXConAux = 0
+                    cocienteRConAux = 0
                     if float(vectorDeStringsDeDatos[4]) != 0:
-                        cociente = round(float(vectorDeStringsDeDatos[0])/float(vectorDeStringsDeDatos[4]), 6)
+                        cocienteXConAux = round(float(vectorDeStringsDeDatos[0])/float(vectorDeStringsDeDatos[4]), 6)
+                        cocienteRConAux = round(float(vectorDeStringsDeDatos[2])/float(vectorDeStringsDeDatos[4]), 6)
                     else:
-                        cociente = float('inf')
+                        cocienteXConAux = float('inf')
+                        cocienteRConAux = float('inf')
                     textoCocienteXConAuxIn.delete(0, tk.END)
-                    textoCocienteXConAuxIn.insert(tk.END, str(cociente)) 
+                    textoCocienteXConAuxIn.insert(tk.END, str(cocienteXConAux))
+                    textoCocienteRConAuxIn.delete(0, tk.END)
+                    textoCocienteRConAuxIn.insert(tk.END, str(cocienteRConAux)) 
             def FrenarMedicion():
                 t.do_run = False
-        
             botonIniciarMedicion = tk.Button(raiz, text="Iniciar", command=IniciarMedicion,font=("Courier", 20))
-            botonIniciarMedicion.place(x=X, y=Y+600, height=40, width=130)
+            botonIniciarMedicion.place(x=X, y=Y+685, height=40, width=130)
             botonFrenarMedicion = tk.Button(raiz, text="Frenar", command=FrenarMedicion,font=("Courier", 20))
-            botonFrenarMedicion.place(x=X, y=Y+640, height=40, width=130)
+            botonFrenarMedicion.place(x=X, y=Y+725, height=40, width=130)
     class PanelSeteoNumeroDeConstantesDeTiempo():
         def __init__(self, raiz, posicion, experimento):
             self.experimento = experimento
@@ -1018,7 +936,6 @@ class Programa():
             textoNumeroDeConstantesDeTiempo.place(x=X+160, y=Y+7)
             textoNumeroDeConstantesDeTiempo.delete(0, tk.END)
             textoNumeroDeConstantesDeTiempo.insert(0, '1')
-        
             def SetearNumeroDeConstantesDeTiempo():
                 try:
                     numeroDeConstantesDeTiempo = int(textoNumeroDeConstantesDeTiempo.get())
@@ -1036,29 +953,40 @@ class Programa():
             labelPosicionSMC.place(x=X, y=Y+5)
             labelPasoSMC = tk.Label(raiz, text = 'Paso (mm) (res: 0.0001) :')
             labelPasoSMC.place(x=X, y=Y+50)
-            textoPosicionSMC = tk.Entry(raiz, font=("Courier",20))
-            textoPosicionSMC.place(x=X+150, y=Y+7, height=30, width=100)
+            self.textoPosicionSMC = tk.Entry(raiz, font=("Courier",20))
+            self.textoPosicionSMC.place(x=X+150, y=Y+7, height=30, width=100)
             textoPasoSMC = tk.Entry(raiz, width=5, font=("Courier",20))
             textoPasoSMC.place(x=X+150, y=Y+50, height=30, width=100)
-            textoPosicionSMC.delete(0, tk.END)
-            textoPosicionSMC.insert(0, str(self.experimento.smc.posicion))
+            self.textoPosicionSMC.delete(0, tk.END)
+            self.textoPosicionSMC.insert(0, str(self.experimento.smc.posicion))
             textoPasoSMC.delete(0, tk.END)
             textoPasoSMC.insert(0, '1')
             def IrALaPosicionSMC():
-                comando = float(textoPosicionSMC.get())
+                comando = float(self.textoPosicionSMC.get())
                 self.experimento.smc.Mover(comando)
             def MoverHaciaAdelante():
                 comando = float(textoPasoSMC.get())
-                self.experimento.smc.Mover(comando+self.experimento.smc.posicion)
+                comandoMultiploDeLaResolucion = self.experimento.smc.resolucion*int(comando/self.experimento.smc.resolucion)
+                textoPasoSMC.delete(0, tk.END)
+                textoPasoSMC.insert(0, str(comandoMultiploDeLaResolucion)) 
+                self.experimento.smc.Mover(comandoMultiploDeLaResolucion+self.experimento.smc.posicion)
+                self.Actualizar()
             def MoverHaciaAtras():
                 comando = (-1)*float(textoPasoSMC.get())
-                self.experimento.smc.Mover(comando+self.experimento.smc.posicion)
+                comandoMultiploDeLaResolucion = self.experimento.smc.resolucion*int(comando/self.experimento.smc.resolucion)
+                textoPasoSMC.delete(0, tk.END)
+                textoPasoSMC.insert(0, str(comandoMultiploDeLaResolucion)) 
+                self.experimento.smc.Mover(comandoMultiploDeLaResolucion+self.experimento.smc.posicion)
+                self.Actualizar()
             botonIrALaPosicionSMC = tk.Button(raiz, text="Mover", command=IrALaPosicionSMC, font=("Courier",15))
             botonIrALaPosicionSMC.place(x=X+255, y=Y+5, height=30, width=80)
             botonMoverHaciaDelante = tk.Button(raiz, text="+", command=MoverHaciaAdelante, font=("Courier",15))
             botonMoverHaciaDelante.place(x=X+255, y=Y+50, height=30, width=30)
             botonMoverHaciaAtras = tk.Button(raiz, text="-", command=MoverHaciaAtras, font=("Courier",15))
             botonMoverHaciaAtras.place(x=X+295, y=Y+50, height=30, width=30)
+        def Actualizar(self):
+            self.textoPosicionSMC.delete(0, tk.END)
+            self.textoPosicionSMC.insert(0, str(self.experimento.smc.posicion))
     class PanelJoggingRedDeDifraccion():
         def __init__(self, raiz, posicion, experimento):
             self.experimento = experimento
@@ -1068,250 +996,238 @@ class Programa():
             labelPosicionMonocromador.place(x=X, y=Y)
             labelPasoMonocromador = tk.Label(raiz, text = 'Paso (mm) (res: 0.3125) :')
             labelPasoMonocromador.place(x=X, y=Y+50)
-            textoPosicionMonocromador = tk.Entry(raiz, width=5, font=("Courier",20))
-            textoPosicionMonocromador.place(x=X+150, y=Y+7, height=30, width=100)
+            self.textoPosicionMonocromador = tk.Entry(raiz, width=5, font=("Courier",20))
+            self.textoPosicionMonocromador.place(x=X+150, y=Y+7, height=30, width=100)
             textoPasoMonocromador = tk.Entry(raiz, width=5, font=("Courier",20))
             textoPasoMonocromador.place(x=X+150, y=Y+50, height=30, width=100)
-            textoPosicionMonocromador.delete(0, tk.END)
-            textoPosicionMonocromador.insert(0, str(self.experimento.mono.posicion))
+            self.textoPosicionMonocromador.delete(0, tk.END)
+            self.textoPosicionMonocromador.insert(0, str(self.experimento.mono.posicion))
             textoPasoMonocromador.delete(0, tk.END)
-            textoPasoMonocromador.insert(0, '1')
+            textoPasoMonocromador.insert(0, '0.9375')
             def IrALaPosicionMonocromador():
-                comando = float(textoPosicionMonocromador.get())
+                comando = float(self.textoPosicionMonocromador.get())
                 self.experimento.mono.Mover(comando)
             def MoverHaciaAdelante():
                 comando = float(textoPasoMonocromador.get())
-                self.experimento.mono.Mover(comando+self.experimento.mono.posicion)
+                comandoMultiploDeLaResolucion = self.experimento.mono.resolucion*int(comando/self.experimento.mono.resolucion)
+                textoPasoMonocromador.delete(0, tk.END)
+                textoPasoMonocromador.insert(0, str(comandoMultiploDeLaResolucion)) 
+                self.experimento.mono.Mover(comandoMultiploDeLaResolucion+self.experimento.mono.posicion)
+                self.Actualizar()
             def MoverHaciaAtras():
                 comando = (-1)*float(textoPasoMonocromador.get())
-                self.experimento.mono.Mover(comando+self.experimento.mono.posicion)
+                comandoMultiploDeLaResolucion = self.experimento.mono.resolucion*int(comando/self.experimento.mono.resolucion)
+                textoPasoMonocromador.delete(0, tk.END)
+                textoPasoMonocromador.insert(0, str(comandoMultiploDeLaResolucion)) 
+                self.experimento.mono.Mover(comandoMultiploDeLaResolucion+self.experimento.mono.posicion)
+                self.Actualizar()
             botonIrALaPosicionMonocromador = tk.Button(raiz, text="Mover", command=IrALaPosicionMonocromador, font=("Courier",15))
             botonIrALaPosicionMonocromador.place(x=X+255, y=Y+5, height=30, width=80)
             botonMoverHaciaDelante = tk.Button(raiz, text="+", command=MoverHaciaAdelante, font=("Courier",15))
             botonMoverHaciaDelante.place(x=X+255, y=Y+50, height=30, width=30)
             botonMoverHaciaAtras = tk.Button(raiz, text="-", command=MoverHaciaAtras, font=("Courier",15))
             botonMoverHaciaAtras.place(x=X+295, y=Y+50, height=30, width=30)   
+        def Actualizar(self):
+            self.textoPosicionMonocromador.delete(0, tk.END)
+            self.textoPosicionMonocromador.insert(0, str(self.experimento.mono.posicion))
+    class PanelBarridoEnDistancia():
+        def __init__(self, raiz, posicion):
+            X = posicion[0] #950
+            Y = posicion[1]#140
+            labelTituloInicial = tk.Label(raiz, text="Barrido en distancia")
+            labelTituloInicial.place(x=X, y=Y)        
+        
+            labelNumeroDeSubintervalos = tk.Label(raiz, text="Secciones: ")
+            labelNumeroDeSubintervalos.place(x=X, y=Y+20)
+            textoNumeroDeSubintervalos = tk.Entry(raiz,width=5)
+            textoNumeroDeSubintervalos.place(x=X+100, y=Y+25)
+            textoNumeroDeSubintervalos.delete(0, tk.END)
+            textoNumeroDeSubintervalos.insert(0, '1')        
+        
+            labelTituloInicial = tk.Label(raiz, text="Posicion Inicial")
+            labelTituloInicial.place(x=X, y=Y+45)
+            labelTituloFinal = tk.Label(raiz, text="Posicion Final")
+            labelTituloFinal.place(x=X+100, y=Y+45)
+            labelTituloPaso = tk.Label(raiz, text="Paso")
+            labelTituloPaso.place(x=X+200, y=Y+45)
+    
+            self.textosPosicionInicial = list()
+            self.textosPosicionFinal = list()
+            self.textosPaso = list()
+                    
+            def ObtenerSecciones():
+                for i in range(0,len(self.textosPosicionInicial)):
+                    self.textosPosicionInicial[i].destroy()
+                    self.textosPosicionFinal[i].destroy()
+                    self.textosPaso[i].destroy()
+                self.textosPosicionInicial.clear()
+                self.textosPosicionFinal.clear()
+                self.textosPaso.clear()
+                self.numeroDeSubintervalos = int(textoNumeroDeSubintervalos.get())
+                for i in range(0,self.numeroDeSubintervalos):
+                    self.textosPosicionInicial.append(tk.Entry(raiz,width=15))
+                    self.textosPosicionFinal.append(tk.Entry(raiz,width=15))
+                    self.textosPaso.append(tk.Entry(raiz,width=15))
+                    self.textosPosicionInicial[i].place(x=X, y=Y+65+i*20)
+                    self.textosPosicionFinal[i].place(x=X+100, y=Y+65+i*20)
+                    self.textosPaso[i].place(x=X+200, y=Y+65+i*20)
+            ObtenerSecciones()    
+            botonSiguiente = tk.Button(raiz, text="Ok", command=ObtenerSecciones)
+            botonSiguiente.place(x=X+150, y=Y+20)
+        def ObtenerValores(self):
+            VectorPosicionInicialSMC_mm = np.zeros(self.numeroDeSubintervalos)
+            VectorPosicionFinalSMC_mm = np.zeros(self.numeroDeSubintervalos)
+            VectorPasoSMC_mm = np.zeros(self.numeroDeSubintervalos)
+            for i in range(0,self.numeroDeSubintervalos):
+                VectorPosicionInicialSMC_mm[i] = float(self.textosPosicionInicial[i].get())
+                VectorPosicionFinalSMC_mm[i] = float(self.textosPosicionFinal[i].get())
+                VectorPasoSMC_mm[i] = float(self.textosPaso[i].get())            
+            return (VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm)
+    class PanelBarridoEnLongitudesDeOnda():
+        def __init__(self, raiz, posicion):
+            X = posicion[0]
+            Y = posicion[1]
+            
+            labelTituloBarridoLongitudDeOnda = tk.Label(raiz, text="Barrido en longitud de onda")
+            labelTituloBarridoLongitudDeOnda.place(x=X, y=Y)
+            labelNumeroDeSubintervalosLongitudDeOnda = tk.Label(raiz, text="Secciones: ")
+            labelNumeroDeSubintervalosLongitudDeOnda.place(x=X, y=Y+20)
+            textoNumeroDeSubintervalosLongitudDeOnda = tk.Entry(raiz,width=5)
+            textoNumeroDeSubintervalosLongitudDeOnda.place(x=X+100, y=Y+25)
+            textoNumeroDeSubintervalosLongitudDeOnda.delete(0, tk.END)
+            textoNumeroDeSubintervalosLongitudDeOnda.insert(0, '1')        
 
+            labelTituloLongitudDeOndaInicial = tk.Label(raiz, text="\u03BB Inicial")
+            labelTituloLongitudDeOndaInicial.place(x=X, y=Y+45)
+            labelTituloLongitudDeOndaFinal = tk.Label(raiz, text="\u03BB Final")
+            labelTituloLongitudDeOndaFinal.place(x=X+100, y=Y+45)
+            labelTituloPasoLongitudDeOnda = tk.Label(raiz, text="Paso")
+            labelTituloPasoLongitudDeOnda.place(x=X+200, y=Y+45)
+   
+            self.textosLongitudDeOndaInicial = list()
+            self.textosLongitudDeOndaFinal = list()
+            self.textosPasoLongitudDeOnda = list()
+        
+            def ObtenerSeccionesBarridoEnLongitudDeOnda():
+                for i in range(0,len(self.textosLongitudDeOndaInicial)):
+                    self.textosLongitudDeOndaInicial[i].destroy()
+                    self.textosLongitudDeOndaFinal[i].destroy()
+                    self.textosPasoLongitudDeOnda[i].destroy()
+                self.textosLongitudDeOndaInicial.clear()
+                self.textosLongitudDeOndaFinal.clear()
+                self.textosPasoLongitudDeOnda.clear()
+                self.numeroDeSubintervalosLongitudDeOnda = int(textoNumeroDeSubintervalosLongitudDeOnda.get())
+                for i in range(0,self.numeroDeSubintervalosLongitudDeOnda):
+                    self.textosLongitudDeOndaInicial.append(tk.Entry(raiz,width=15))
+                    self.textosLongitudDeOndaFinal.append(tk.Entry(raiz,width=15))
+                    self.textosPasoLongitudDeOnda.append(tk.Entry(raiz,width=15))
+                    self.textosLongitudDeOndaInicial[i].place(x=X, y=Y+65+i*20)
+                    self.textosLongitudDeOndaFinal[i].place(x=X+100, y=Y+65+i*20)
+                    self.textosPasoLongitudDeOnda[i].place(x=X+200, y=Y+65+i*20)
+            botonSeccionesLongitudDeOnda = tk.Button(raiz, text="Ok", command=ObtenerSeccionesBarridoEnLongitudDeOnda)
+            botonSeccionesLongitudDeOnda.place(x=X+150, y=Y+20)
+            ObtenerSeccionesBarridoEnLongitudDeOnda()
+        def ObtenerValores(self):
+            VectorLongitudDeOndaInicial_nm = np.zeros(self.numeroDeSubintervalosLongitudDeOnda)
+            VectorLongitudDeOndaFinal_nm = np.zeros(self.numeroDeSubintervalosLongitudDeOnda)
+            VectorPasoMono_nm = np.zeros(self.numeroDeSubintervalosLongitudDeOnda)
+            for i in range(0,self.numeroDeSubintervalosLongitudDeOnda):
+                VectorLongitudDeOndaInicial_nm[i] = float(self.textosLongitudDeOndaInicial[i].get())
+                VectorLongitudDeOndaFinal_nm[i] = float(self.textosLongitudDeOndaFinal[i].get())
+                VectorPasoMono_nm[i] = float(self.textosPasoLongitudDeOnda[i].get())
+            return (VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
     def PantallaPrincipal(self):
         raiz = tk.Tk()
         raiz.title('Pump and Probe Software')
-        raiz.geometry('1450x825')   
+        raiz.geometry('1920x1080')    #'1450x825' Notebook #'1920x1080' Mi compu de escritorio #'' Laboratorio
         
         # GRAFICO #
-        
         self.grafico = Grafico()
         canvas = FigureCanvasTkAgg(self.grafico.fig, master=raiz)
         canvas.get_tk_widget().place(x=10,y=90)
         canvas.draw()
         
-        # SETEO DE NUMERO DE CONSTANTES DE TIEMPO DEL LOCK IN#        
-        
+        # PANEL SETEO DE NUMERO DE CONSTANTES DE TIEMPO DEL LOCK IN#        
         self.panelSeteoNumeroDeConstantesDeTiempo = self.PanelSeteoNumeroDeConstantesDeTiempo(raiz, (700, 10), self.experimento)
         
         # PANEL JOGGING DE LA PLATAFORMA #
-        
         self.panelJoggingPlataforma = self.PanelJoggingPlataforma(raiz, (5, 5), self.experimento)
         
         # PANEL JOGGING DE LA RED DE DIFRACCION #
-        
         self.panelJoggingRedDeDifraccion = self.PanelJoggingRedDeDifraccion(raiz, (350, 5), self.experimento)
         
-        # MEDICION MANUAL #
-        self.panelMedicionManual = self.PanelMedicionManual(raiz, (1275, 100), self.experimento)
+        # PANEL MEDICION MANUAL #
+        self.panelMedicionManual = self.PanelMedicionManual(raiz, (1745, 100), self.experimento)
         
-        #CONVERSOR#
+        # PANEL CONVERSOR #
         self.panelConversor = self.PanelConversor(raiz, (700,43))
         
-        #BOTON CONFIGURACION#
+        # BOTON CONFIGURACION #
         fuente = font.Font(size=10)
-        botonConfiguracion = tk.Button(raiz, text="Configuración", font=fuente, command=self.Configuracion, width=20, heigh=2)
+        botonConfiguracion = tk.Button(raiz, text="Configuración", font=fuente, command=self.configuracion.AbrirVentana, width=20, heigh=2)
         botonConfiguracion.place(x=1050, y=5)
         
-        
-        #BARRIDOS#
-        
+        # BARRIDOS #
         labelMediciones = tk.Label(raiz, text = 'Barridos', font=("Arial", 25))
-        labelMediciones.place(x=950, y=100)
+        labelMediciones.place(x=1420, y=100)
 
-        #BARRIDO EN POSICIONES DEL SMC#
-        
-        labelTituloInicial = tk.Label(raiz, text="Barrido en distancia")
-        labelTituloInicial.place(x=950, y=140)        
-        
-        labelNumeroDeSubintervalos = tk.Label(raiz, text="Secciones: ")
-        labelNumeroDeSubintervalos.place(x=950, y=160)
-        textoNumeroDeSubintervalos = tk.Entry(raiz,width=5)
-        textoNumeroDeSubintervalos.place(x=1050, y=165)
-        textoNumeroDeSubintervalos.delete(0, tk.END)
-        textoNumeroDeSubintervalos.insert(0, '1')        
-        
-        labelTituloInicial = tk.Label(raiz, text="Posicion Inicial")
-        labelTituloInicial.place(x=950, y=185)
-        labelTituloFinal = tk.Label(raiz, text="Posicion Final")
-        labelTituloFinal.place(x=1050, y=185)
-        labelTituloPaso = tk.Label(raiz, text="Paso")
-        labelTituloPaso.place(x=1150, y=185)
-    
-        textosPosicionInicial = list()
-        textosPosicionFinal = list()
-        textosPaso = list()
-                    
-        def ObtenerSecciones():
-            for i in range(0,len(textosPosicionInicial)):
-                textosPosicionInicial[i].destroy()
-                textosPosicionFinal[i].destroy()
-                textosPaso[i].destroy()
-            textosPosicionInicial.clear()
-            textosPosicionFinal.clear()
-            textosPaso.clear()
-            self.numeroDeSubintervalos = int(textoNumeroDeSubintervalos.get())
-            for i in range(0,self.numeroDeSubintervalos):
-                textosPosicionInicial.append(tk.Entry(raiz,width=15))
-                textosPosicionFinal.append(tk.Entry(raiz,width=15))
-                textosPaso.append(tk.Entry(raiz,width=15))
-                textosPosicionInicial[i].place(x=950, y=205+i*20)
-                textosPosicionFinal[i].place(x=1050, y=205+i*20)
-                textosPaso[i].place(x=1150, y=205+i*20)
-        ObtenerSecciones()    
-        botonSiguiente = tk.Button(raiz, text="Ok", command=ObtenerSecciones)
-        botonSiguiente.place(x=1100, y=160)
+        # BARRIDO EN POSICIONES DEL SMC #
+        self.panelBarridoEnDistancia = self.PanelBarridoEnDistancia(raiz, (1420,140))
 
         def MedirALambdaFija():
-            VectorPosicionInicialSMC_mm = np.zeros(self.numeroDeSubintervalos)
-            VectorPosicionFinalSMC_mm = np.zeros(self.numeroDeSubintervalos)
-            VectorPasoSMC_mm = np.zeros(self.numeroDeSubintervalos)
-            for i in range(0,self.numeroDeSubintervalos):
-                VectorPosicionInicialSMC_mm[i] = float(textosPosicionInicial[i].get())
-                VectorPosicionFinalSMC_mm[i] = float(textosPosicionFinal[i].get())
-                VectorPasoSMC_mm[i] = float(textosPaso[i].get())
             nombreArchivo = self.panelNombreArchivo.textoNombreArchivo.get()
             self.panelNombreArchivo.ActualizarNombreArchivo()
             ejeX = self.panelEjeX.ObtenerValor()
             valoresAGraficar = self.panelValoresAGraficar.ObtenerValores() 
+            VectorPosicionInicialSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()[0]
+            VectorPosicionFinalSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()[1]
+            VectorPasoSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()[2]    
             self.grafico.Configurar(valoresAGraficar,0,ejeX,longitudDeOndaFija_nm=self.experimento.mono.posicion)
             self.experimento.grafico = self.grafico
             raiz.update()
-
             medicion = Medicion()
-
-#            def MidiendoALambdaFija():
-#                print('midiendo a lambda fija')
-
-#                thread.join()
-#            global thread
-#            thread = th.Thread(target=MidiendoALambdaFija)
-#            thread.do_run = True
-#            thread.start()
             tiempoDeMedicion = int(self.CalcularTiempoDeMedicionALambdaFija(VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm))                
-#            tiempoDeMedicion = 912
             medicion.IniciarVentana(tiempoDeMedicion, 0, self.experimento, nombreArchivo, VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm)
         botonMedirALambdaFija = tk.Button(raiz, text="Barrer", command=MedirALambdaFija)
-        botonMedirALambdaFija.place(x=1075, y=305)
+        botonMedirALambdaFija.place(x=1545, y=300)
+    
         
         #BARRIDO EN LONGITUDES DE ONDA#
-        
-        labelTituloBarridoLongitudDeOnda = tk.Label(raiz, text="Barrido en longitud de onda")
-        labelTituloBarridoLongitudDeOnda.place(x=950, y=360)        
-
-        labelNumeroDeSubintervalosLongitudDeOnda = tk.Label(raiz, text="Secciones: ")
-        labelNumeroDeSubintervalosLongitudDeOnda.place(x=950, y=380)
-        textoNumeroDeSubintervalosLongitudDeOnda = tk.Entry(raiz,width=5)
-        textoNumeroDeSubintervalosLongitudDeOnda.place(x=1050, y=385)
-        textoNumeroDeSubintervalosLongitudDeOnda.delete(0, tk.END)
-        textoNumeroDeSubintervalosLongitudDeOnda.insert(0, '1')        
-
-        labelTituloLongitudDeOndaInicial = tk.Label(raiz, text="\u03BB Inicial")
-        labelTituloLongitudDeOndaInicial.place(x=950, y=405)
-        labelTituloLongitudDeOndaFinal = tk.Label(raiz, text="\u03BB Final")
-        labelTituloLongitudDeOndaFinal.place(x=1050, y=405)
-        labelTituloPasoLongitudDeOnda = tk.Label(raiz, text="Paso")
-        labelTituloPasoLongitudDeOnda.place(x=1150, y=405)
-   
-        textosLongitudDeOndaInicial = list()
-        textosLongitudDeOndaFinal = list()
-        textosPasoLongitudDeOnda = list()
-        
-        def ObtenerSeccionesBarridoEnLongitudDeOnda():
-            for i in range(0,len(textosLongitudDeOndaInicial)):
-                textosLongitudDeOndaInicial[i].destroy()
-                textosLongitudDeOndaFinal[i].destroy()
-                textosPasoLongitudDeOnda[i].destroy()
-            textosLongitudDeOndaInicial.clear()
-            textosLongitudDeOndaFinal.clear()
-            textosPasoLongitudDeOnda.clear()
-            self.numeroDeSubintervalosLongitudDeOnda = int(textoNumeroDeSubintervalosLongitudDeOnda.get())
-            for i in range(0,self.numeroDeSubintervalosLongitudDeOnda):
-                textosLongitudDeOndaInicial.append(tk.Entry(raiz,width=15))
-                textosLongitudDeOndaFinal.append(tk.Entry(raiz,width=15))
-                textosPasoLongitudDeOnda.append(tk.Entry(raiz,width=15))
-                textosLongitudDeOndaInicial[i].place(x=950, y=425+i*20)
-                textosLongitudDeOndaFinal[i].place(x=1050, y=425+i*20)
-                textosPasoLongitudDeOnda[i].place(x=1150, y=425+i*20)
-        botonSeccionesLongitudDeOnda = tk.Button(raiz, text="Ok", command=ObtenerSeccionesBarridoEnLongitudDeOnda)
-        botonSeccionesLongitudDeOnda.place(x=1100, y=380)
-        ObtenerSeccionesBarridoEnLongitudDeOnda()
+        self.panelBarridoEnLongitudesDeOnda = self.PanelBarridoEnLongitudesDeOnda(raiz, (1420,360))
         
         def MedirAPosicionFija():
-            VectorLongitudDeOndaInicial_nm = np.zeros(self.numeroDeSubintervalosLongitudDeOnda)
-            VectorLongitudDeOndaFinal_nm = np.zeros(self.numeroDeSubintervalosLongitudDeOnda)
-            VectorPasoMono_nm = np.zeros(self.numeroDeSubintervalosLongitudDeOnda)
-            for i in range(0,self.numeroDeSubintervalosLongitudDeOnda):
-                VectorLongitudDeOndaInicial_nm[i] = float(textosLongitudDeOndaInicial[i].get())
-                VectorLongitudDeOndaFinal_nm[i] = float(textosLongitudDeOndaFinal[i].get())
-                VectorPasoMono_nm[i] = float(textosPasoLongitudDeOnda[i].get())
             nombreArchivo = self.panelNombreArchivo.textoNombreArchivo.get()
             self.panelNombreArchivo.ActualizarNombreArchivo()
             valoresAGraficar = self.panelValoresAGraficar.ObtenerValores()
+            VectorLongitudDeOndaInicial_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()[0]
+            VectorLongitudDeOndaFinal_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()[1]
+            VectorPasoMono_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()[2]
             self.grafico.Configurar(valoresAGraficar,1,0,posicionFijaSMC_mm = self.experimento.smc.posicion)
             self.experimento.grafico = self.grafico
-            raiz.update()
-            
+            raiz.update()            
             medicion = Medicion()
-            
-#            def MidiendoAPosicionFija():
-#                print('midiendo a posicion fija')
-#                self.experimento.MedicionAPosicionFijaSMC(nombreArchivo,VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
-#                nombreGrafico = nombreArchivo.replace('.csv','')
-#                self.grafico.GuardarGrafico(nombreGrafico)
-#                medicion.CambiarEstadoAFinalizado(nombreArchivo)
-#            global thread
- #           thread = th.Thread(target=MidiendoAPosicionFija)
-  #          thread.do_run = True
-#            thread.start()
-
             tiempoDeMedicion = int(self.CalcularTiempoDeMedicionAPosicionFijaSMC(VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm))
-#            tiempoDeMedicion = 500
             medicion.IniciarVentana(tiempoDeMedicion, 1, self.experimento, nombreArchivo, VectorLongitudDeOndaInicial_nm=VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm=VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm=VectorPasoMono_nm)
-
         botonMedirAPosicionFija = tk.Button(raiz, text="Barrer", command=MedirAPosicionFija)
-        botonMedirAPosicionFija.place(x=1075, y=525)
+        botonMedirAPosicionFija.place(x=1545, y=525)
                 
-        # EJE X: TIEMPO O DISTANCIA#
-        self.panelEjeX = self.PanelEjeX(raiz, (950,720))
+        # PANEL EJE X: TIEMPO O DISTANCIA#
+        self.panelEjeX = self.PanelEjeX(raiz, (1420,720))
         
-        # VALORES A GRAFICAR #
-        self.panelValoresAGraficar = self.PanelValoresAGraficar(raiz, (950,650))
+        # PANEL VALORES A GRAFICAR #
+        self.panelValoresAGraficar = self.PanelValoresAGraficar(raiz, (1420,650))
 
-        # NOMBRE ARCHIVO #
-        self.panelNombreArchivo = self.PanelNombreArchivo(raiz, (950, 760))
+        # PANEL NOMBRE ARCHIVO #
+        self.panelNombreArchivo = self.PanelNombreArchivo(raiz, (1420, 760))
         
-        
-        #DOBLE BARRIDO#
+        # DOBLE BARRIDO #
         def MedirCompletamente():
-            VectorPosicionInicialSMC_mm = np.zeros(self.numeroDeSubintervalos)
-            VectorPosicionFinalSMC_mm = np.zeros(self.numeroDeSubintervalos)
-            VectorPasoSMC_mm = np.zeros(self.numeroDeSubintervalos)
-            for i in range(0,self.numeroDeSubintervalos):
-                VectorPosicionInicialSMC_mm[i] = float(textosPosicionInicial[i].get())
-                VectorPosicionFinalSMC_mm[i] = float(textosPosicionFinal[i].get())
-                VectorPasoSMC_mm[i] = float(textosPaso[i].get())
-            VectorLongitudDeOndaInicial_nm = np.zeros(self.numeroDeSubintervalosLongitudDeOnda)
-            VectorLongitudDeOndaFinal_nm = np.zeros(self.numeroDeSubintervalosLongitudDeOnda)
-            VectorPasoMono_nm = np.zeros(self.numeroDeSubintervalosLongitudDeOnda)
-            for i in range(0,self.numeroDeSubintervalosLongitudDeOnda):
-                VectorLongitudDeOndaInicial_nm[i] = float(textosLongitudDeOndaInicial[i].get())
-                VectorLongitudDeOndaFinal_nm[i] = float(textosLongitudDeOndaFinal[i].get())
-                VectorPasoMono_nm[i] = float(textosPasoLongitudDeOnda[i].get())
+            VectorPosicionInicialSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()[0]
+            VectorPosicionFinalSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()[1]
+            VectorPasoSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()[2]
+            VectorLongitudDeOndaInicial_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()[0]
+            VectorLongitudDeOndaFinal_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()[1]
+            VectorPasoMono_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()[2]
             ejeX = self.panelEjeX.ObtenerValor()
             valoresAGraficar = self.panelValoresAGraficar.ObtenerValores()
             nombreArchivo = self.panelNombreArchivo.textoNombreArchivo.get()
@@ -1319,31 +1235,102 @@ class Programa():
             self.grafico.Configurar(valoresAGraficar, 2, ejeX, VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
             self.experimento.grafico = self.grafico            
             raiz.update()
-            
             medicion = Medicion()
-
-#            def MidiendoCompletamente():
-#                print('midiendo completamente')
-#                self.experimento.MedicionCompleta(nombreArchivo, VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
-#                nombreGrafico = nombreArchivo.replace('.csv','')
-#                self.grafico.GuardarGrafico(nombreGrafico)
-#                medicion.CambiarEstadoAFinalizado(nombreArchivo)
-#            global thread
-#            thread = th.Thread(target=MidiendoCompletamente)
-#            thread.do_run = True
-#            thread.start()
             tiempoDeMedicion = int(self.CalcularTiempoDeMedicionCompleta(VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm))
-#            tiempoDeMedicion = 5000
             medicion.IniciarVentana(tiempoDeMedicion, 2, self.experimento, nombreArchivo,  VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
-
         botonMedirCompletamente = tk.Button(raiz, text="Barrido doble", command=MedirCompletamente)
-        botonMedirCompletamente.place(x=1075, y=605)
+        botonMedirCompletamente.place(x=1545, y=605)
+
+        # PROTOCOLO AL CERRAR PROGRAMA #        
         def AlCerrar():
             self.experimento.smc.address.close()
             self.experimento.mono.address.close()
-            os._exit(00)
             raiz.destroy()
         raiz.protocol("WM_DELETE_WINDOW", AlCerrar)
-        raiz.mainloop()
 
+        raiz.mainloop()
+    def CalcularTiempoDeMedicionALambdaFija(self,
+                                            VectorPosicionInicialSMC_mm,
+                                            VectorPosicionFinalSMC_mm,
+                                            VectorPasoSMC_mm):
+        TiempoDeMedicion = 0
+        CantidadDeMedicionesTotal = 0
+        TiempoDeDesplazamientoTotal = 0
+        TiempoDeDesplazamientoPorPaso = 0
+        TiempoMuerto = 0
+        TiempoMuerto = abs(VectorPosicionInicialSMC_mm[0]-self.experimento.smc.posicion)/self.experimento.smc.velocidadMmPorSegundo + tiempoAgregadoPlataforma
+        for i in range(0, len(VectorPosicionInicialSMC_mm)):
+            if i>0 and VectorPosicionInicialSMC_mm[i] != VectorPosicionFinalSMC_mm[i-1]:
+                TiempoMuerto = TiempoMuerto + abs(VectorPosicionInicialSMC_mm[i]-VectorPosicionFinalSMC_mm[i-1])/self.experimento.smc.velocidadMmPorSegundo + tiempoAgregadoPlataforma
+            CantidadDeMediciones = 0
+            CantidadDeMediciones = abs(VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])/VectorPasoSMC_mm[i]
+            TiempoDeDesplazamientoPorPaso = VectorPasoSMC_mm[i]/self.experimento.smc.velocidadMmPorSegundo + tiempoAgregadoPlataforma
+            TiempoDeDesplazamientoTotal = TiempoDeDesplazamientoTotal + CantidadDeMediciones*TiempoDeDesplazamientoPorPaso
+            CantidadDeMedicionesTotal = CantidadDeMedicionesTotal + CantidadDeMediciones
+        TiempoDeMedicion = CantidadDeMedicionesTotal*(self.experimento.lockin.TiempoDeIntegracionTotal) + TiempoDeDesplazamientoTotal + TiempoMuerto
+        return TiempoDeMedicion    
+    def CalcularTiempoDeMedicionAPosicionFijaSMC(self, 
+                                                 VectorLongitudDeOndaInicial_nm,
+                                                 VectorLongitudDeOndaFinal_nm,
+                                                 VectorPasoMono_nm):
+        TiempoDeMedicion = 0
+        CantidadDeMedicionesTotal = 0
+        TiempoDeDesplazamientoTotal = 0
+        TiempoDeDesplazamientoPorPaso = 0
+        TiempoMuerto = 0
+        TiempoMuerto = abs(VectorLongitudDeOndaInicial_nm[0]-self.experimento.mono.posicion)/self.experimento.mono.velocidadNmPorSegundo + tiempoAgregadoMonocromador
+        for i in range(0, len(VectorLongitudDeOndaInicial_nm)):
+            if i>0 and VectorLongitudDeOndaInicial_nm[i] != VectorLongitudDeOndaFinal_nm[i-1]:
+                TiempoMuerto = TiempoMuerto + abs(VectorLongitudDeOndaInicial_nm[i]-VectorLongitudDeOndaFinal_nm[i-1])/self.experimento.mono.velocidadNmPorSegundo + tiempoAgregadoMonocromador
+            CantidadDeMediciones = 0
+            CantidadDeMediciones = abs(VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i]
+            TiempoDeDesplazamientoPorPaso = VectorPasoMono_nm[i]/self.experimento.mono.velocidadNmPorSegundo + tiempoAgregadoMonocromador
+            TiempoDeDesplazamientoTotal = TiempoDeDesplazamientoTotal + CantidadDeMediciones*TiempoDeDesplazamientoPorPaso
+        TiempoDeMedicion = CantidadDeMedicionesTotal*(self.experimento.lockin.TiempoDeIntegracionTotal) + TiempoDeDesplazamientoTotal + TiempoMuerto
+        return TiempoDeMedicion    
+    def CalcularTiempoDeMedicionCompleta(self, 
+                                         VectorPosicionInicialSMC_mm,
+                                         VectorPosicionFinalSMC_mm,
+                                         VectorPasoSMC_mm,
+                                         VectorLongitudDeOndaInicial_nm,
+                                         VectorLongitudDeOndaFinal_nm,
+                                         VectorPasoMono_nm):
+        CantidadDeMovimientosSMCTotal = 0
+        TiempoDeDesplazamientoSMC = 0
+        TiempoDeDesplazamientoPorPaso = 0
+        TiempoDeDesplazamientoMono = 0
+        TiempoMuertoSMC = 0
+        TiempoMuertoMono = 0
+        CantidadDeMovimientosMonoTotal = 0
+        largoVectorSMC = len(VectorPosicionInicialSMC_mm)
+        TiempoSMCInicial = abs(VectorPosicionInicialSMC_mm[0]-self.experimento.smc.posicion)/self.experimento.smc.velocidadMmPorSegundo + tiempoAgregadoPlataforma
+        TiempoDeRetornoSMC = abs(VectorPosicionFinalSMC_mm[largoVectorSMC-1]-VectorPosicionInicialSMC_mm[0])/self.experimento.smc.velocidadMmPorSegundo + tiempoAgregadoPlataforma
+        TiempoMonocromadorInicial = abs(VectorLongitudDeOndaInicial_nm[0]-self.experimento.mono.posicion)/self.experimento.mono.velocidadNmPorSegundo + tiempoAgregadoMonocromador
+        for i in range(0, len(VectorPosicionInicialSMC_mm)):
+            if i>0 and VectorPosicionInicialSMC_mm[i] != VectorPosicionFinalSMC_mm[i-1]:
+                TiempoMuertoSMC = TiempoMuertoSMC + (VectorPosicionInicialSMC_mm[i]-VectorPosicionFinalSMC_mm[i-1])/self.experimento.smc.velocidadMmPorSegundo + tiempoAgregadoPlataforma
+            CantidadDeMovimientosSMC = 0
+            CantidadDeMovimientosSMC = abs(VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])/VectorPasoSMC_mm[i]
+            TiempoDeDesplazamientoPorPaso = VectorPasoSMC_mm[i]/self.experimento.smc.velocidadMmPorSegundo + tiempoAgregadoPlataforma
+            TiempoDeDesplazamientoSMC = TiempoDeDesplazamientoSMC + CantidadDeMovimientosSMC*TiempoDeDesplazamientoPorPaso        
+        TiempoSMC = TiempoDeDesplazamientoSMC + TiempoSMCInicial + TiempoMuertoSMC + TiempoDeRetornoSMC        
+        for j in range(0, len(VectorLongitudDeOndaInicial_nm)):
+            if j>0 and VectorLongitudDeOndaInicial_nm[i] != VectorLongitudDeOndaFinal_nm[i-1]:
+                TiempoMuertoMono = TiempoMuertoMono + abs(VectorLongitudDeOndaInicial_nm[j]-VectorLongitudDeOndaFinal_nm[j-1])/self.experimento.mono.velocidadNmPorSegundo + tiempoAgregadoMonocromador
+            CantidadDeMovimientosMono = 0
+            CantidadDeMovimientosMono = abs(VectorLongitudDeOndaFinal_nm[j]-VectorLongitudDeOndaInicial_nm[j])/VectorPasoMono_nm[j]
+            CantidadDeMovimientosMonoTotal = CantidadDeMovimientosMonoTotal + CantidadDeMovimientosMono
+            TiempoDeDesplazamientoPorPaso = VectorPasoMono_nm[j]/self.experimento.mono.velocidadNmPorSegundo + tiempoAgregadoMonocromador
+            TiempoDeDesplazamientoMono = TiempoDeDesplazamientoMono + CantidadDeMovimientosMono*TiempoDeDesplazamientoPorPaso
+        TiempoMonocromador = TiempoDeDesplazamientoMono + TiempoMonocromadorInicial + TiempoMuertoMono
+        TiempoSMCTotal = TiempoSMC*CantidadDeMovimientosMonoTotal
+        TiempoLockIn = CantidadDeMovimientosSMCTotal*CantidadDeMovimientosMonoTotal*(self.experimento.lockin.TiempoDeIntegracionTotal)       
+        TiempoTotal = TiempoMonocromador + TiempoSMCTotal + TiempoLockIn        
+        return TiempoTotal
+try:
+    programa.experimento.smc.CerrarPuerto()
+    programa.experimento.mono.CerrarPuerto()
+except:
+    print('Exception')
 programa = Programa()
+
