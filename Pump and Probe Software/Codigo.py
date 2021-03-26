@@ -86,9 +86,10 @@ class SMC():
     def Mover(self, PosicionSMC_mm): 
         comando = '1PA' + str(PosicionSMC_mm) + '\r\n'
         self.address.write(comando.encode())
-        time.sleep(self.CalcularTiempoSleep(PosicionSMC_mm))
+        tiempoDeSleep = self.CalcularTiempoSleep(PosicionSMC_mm)
         PosicionSMC_mm = round(PosicionSMC_mm, 6)
         self.posicion = PosicionSMC_mm
+        time.sleep(tiempoDeSleep)
     def CalcularTiempoSleep(self, PosicionSMC_mm):
         TiempoSMC = 0
         if (PosicionSMC_mm-self.posicion) == 0:
@@ -178,8 +179,9 @@ class SMS():
     def Mover(self, LongitudDeOnda_nm): 
         comando = '#MCL\r3\r' + str(LongitudDeOnda_nm) + '\r'
         self.address.write(comando.encode())
-        time.sleep(self.CalcularTiempoSleep(LongitudDeOnda_nm))
+        tiempoDeSleep = self.CalcularTiempoSleep(LongitudDeOnda_nm)
         self.posicion = LongitudDeOnda_nm
+        time.sleep(tiempoDeSleep)
     def CalcularTiempoSleep(self, LongitudDeOnda_nm):
         TiempoMonocromador = 0
         if (LongitudDeOnda_nm-self.posicion) == 0:
@@ -318,7 +320,7 @@ class Grafico():
                 for j in range(0,numeroDePasos):
                     self.VectorY = np.append(self.VectorY, round(VectorLongitudDeOndaInicial_nm[i]+(j+1)*VectorPasoMono_nm[i],6))
             for i in range(0, self.cantidadDeValoresAGraficar):
-                self.listaDeMatrices.append(np.zeros((len(self.VectorY),len(self.VectorX))))
+                self.listaDeMatrices.append(np.zeros((len(self.VectorY),len(self.VectorX_mm))))
         
         
         if valoresAGraficar[0] == 1:
@@ -334,6 +336,7 @@ class Grafico():
         if valoresAGraficar[5] == 1:
             self.diccionarioDeValoresAGraficar['R/AUX'] = 5
         self.listaDeValoresAGraficar = list(self.diccionarioDeValoresAGraficar.values())
+        self.listaDeKeysDelDiccionario = list(self.diccionarioDeValoresAGraficar.keys())
         
         if self.cantidadDeValoresAGraficar == 1:
             self.listaDeGraficos.append(self.fig.add_subplot(111))
@@ -372,15 +375,15 @@ class Grafico():
                     self.listaDeGraficos[i].set_xlabel('Retardo (mm)')
                 else:
                     self.listaDeGraficos[i].set_xlabel('Retardo (ps)')
-                self.listaDeGraficos[i].set_ylabel(self.listaDeValoresAGraficar[i])
+                self.listaDeGraficos[i].set_ylabel(self.listaDeKeysDelDiccionario[i])
         if TipoDeMedicion == 1:
             for i in range (0,self.cantidadDeValoresAGraficar):
                 self.listaDeGraficos[i].set_title('Posición = ' + str(self.posicionFijaSMC_mm) + ' mm')
                 self.listaDeGraficos[i].set_xlabel('Longitud de onda (nm)')
-                self.listaDeGraficos[i].set_ylabel(self.listaDeValoresAGraficar[i])
+                self.listaDeGraficos[i].set_ylabel(self.listaDeKeysDelDiccionario[i])
         if TipoDeMedicion == 2:
             for i in range(0,self.cantidadDeValoresAGraficar):
-                self.listaDeGraficos[i].set_title(self.listaDeValoresAGraficar[i])
+                self.listaDeGraficos[i].set_title(self.listaDeKeysDelDiccionario[i])
                 if self.ejeX == 'Distancia':
                     self.listaDeGraficos[i].set_xlabel('Retardo (mm)')
                     self.listaDePlots.append(self.listaDeGraficos[i].contourf(self.VectorX_mm, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy'))
@@ -427,13 +430,16 @@ class Grafico():
         self.listaDeColorbars = list()
         for i in range(0, self.cantidadDeValoresAGraficar):
             if self.listaDeValoresAGraficar[i] != 4 and self.listaDeValoresAGraficar[i] != 5:
-                self.listaDeMatrices[i][posicionY[0][0],posicionX[0][0]].append(float(VectorAGraficar[self.listaDeValoresAGraficar[i]]))
+                self.listaDeMatrices[i][posicionY[0][0],posicionX[0][0]] = float(VectorAGraficar[self.listaDeValoresAGraficar[i]])
             else:
                 if self.listaDeValoresAGraficar[i] == 4:
-                    self.listaDeMatrices[i][posicionY[0][0],posicionX[0][0]].append(float(VectorAGraficar[0])/float(VectorAGraficar[4]))
+                    self.listaDeMatrices[i][posicionY[0][0],posicionX[0][0]] = float(VectorAGraficar[0])/float(VectorAGraficar[4])
                 elif self.listaDeValoresAGraficar[i] == 5:
-                    self.listaDeMatrices[i][posicionY[0][0],posicionX[0][0]].append(float(VectorAGraficar[2])/float(VectorAGraficar[4]))
-            self.listaDeGraficos[i].contourf(self.VectorX, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy')
+                    self.listaDeMatrices[i][posicionY[0][0],posicionX[0][0]] = float(VectorAGraficar[2])/float(VectorAGraficar[4])
+            if self.ejeX == 'Distancia':
+                self.listaDeGraficos[i].contourf(self.VectorX_mm, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy')
+            else:
+                self.listaDeGraficos[i].contourf(self.VectorX_ps, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy')
             divider = make_axes_locatable(self.listaDeGraficos[i])
             cax = divider.append_axes("right", size="5%", pad=0.05)
             self.listaDeColorbars.append(self.fig.colorbar(self.listaDePlots[i],cax=cax))
@@ -563,7 +569,7 @@ class Advertencia():
         botonCerrar.place(x=200, y = 40)
         advertencia.mainloop()
 class Medicion():
-    def IniciarVentana(self, tiempoDeMedicion, tipoDeMedicion, experimento, nombreArchivo, VectorPosicionInicialSMC_mm=0, VectorPosicionFinalSMC_mm=0, VectorPasoSMC_mm=0, VectorLongitudDeOndaInicial_nm=0, VectorLongitudDeOndaFinal_nm=0, VectorPasoMono_nm=0):
+    def IniciarVentana(self, programa, tiempoDeMedicion, tipoDeMedicion, experimento, nombreArchivo, VectorPosicionInicialSMC_mm=0, VectorPosicionFinalSMC_mm=0, VectorPasoSMC_mm=0, VectorLongitudDeOndaInicial_nm=0, VectorLongitudDeOndaFinal_nm=0, VectorPasoMono_nm=0):
         global do_run
         do_run = True
         self.midiendo = tk.Tk()
@@ -578,7 +584,9 @@ class Medicion():
         def Cancelar():
             global do_run
             do_run = False
-            print('Cancelar')
+            time.sleep(experimento.lockin.TiempoDeIntegracionTotal+1)
+            programa.panelJoggingPlataforma.Actualizar()
+            programa.panelJoggingRedDeDifraccion.Actualizar()
             self.midiendo.destroy()
         botonCancelar = tk.Button(self.midiendo, text = 'Cancelar', command = Cancelar)
         botonCancelar.place(x=70, y = 40)
@@ -597,11 +605,12 @@ class Medicion():
             nombreGrafico = nombreArchivo.replace('.csv','')
             experimento.grafico.GuardarGrafico(nombreGrafico)         
             self.CambiarEstadoAFinalizado(nombreArchivo)  
+            programa.panelJoggingPlataforma.Actualizar()  
+            programa.panelJoggingRedDeDifraccion.Actualizar()
         Medir()
         self.midiendo.mainloop()
     def CambiarEstadoAFinalizado(self, nombreArchivo):
         self.botonFinalizar["state"]="normal"
-        print('CambiarEstadoAFinalizado')
         self.labelEstado = tk.Label(self.midiendo, text="Medicion Finalizada. El archivo ha sido guardado con el\n nombre: " + nombreArchivo)
         self.labelEstado.place(x=0, y=0)                       
 class Configuracion():
@@ -669,8 +678,8 @@ class Configuracion():
             except:
                 Advertencia('No se ha podido abrir el puerto serie.')
                 return
-            b = self.experimento.mono.Identificar() # Booleano
-            if b:
+            self.b2 = self.experimento.mono.Identificar() # Booleano
+            if self.b2:
                 labelSMSReconocido.config(text = 'Reconocido')
                 botonInicializarSMS["state"]="normal"
                 botonCalibrarSMS["state"] = "normal"
@@ -713,8 +722,8 @@ class Configuracion():
             except:
                 Advertencia('No se ha podido abrir el puerto GPIB.')
                 return
-            b = self.experimento.lockin.Identificar() # Booleano
-            if b:
+            self.b3 = self.experimento.lockin.Identificar() # Booleano
+            if self.b3:
                 labelLockInReconocido.config(text = 'Reconocido')
                 botonInicializarLockIn["state"] = "normal"
             else:
@@ -795,6 +804,7 @@ class Programa():
             return(self.variable.get())
     class PanelNombreArchivo():
         def __init__(self, raiz, posicion):
+#            self.LecturaTxt()
             self.numeroDeMedicion = 1
             X = posicion[0]
             Y = posicion[1]
@@ -814,6 +824,18 @@ class Programa():
             fechaEnFormatoString = fecha.strftime("%Y-%m-%d")
             nombre = fechaEnFormatoString + '_'+ str(self.numeroDeMedicion) + '.csv'
             self.textoNombreArchivo.insert(0, nombre)        
+        def LecturaTxt(self):
+            with open('data.txt', 'r') as f:
+                linea1 = f.readline()
+                print(linea1)
+                self.nombreArchivo = linea1
+                fecha = date.today()
+                fechaEnFormatoString = fecha.strftime("%Y-%m-%d")
+                if fechaEnFormatoString in self.nombreArchivo:
+                    self.numeroDeMedicion = int((linea1.split('_')[1]).split('.')[0])
+                else:
+                    self.numeroDeMedicion = 1
+                print(self.numeroDeMedicion)
     class PanelConversor():
         def __init__(self, raiz, posicion):
             X = posicion[0] 
@@ -972,11 +994,11 @@ class Programa():
                 self.experimento.smc.Mover(comandoMultiploDeLaResolucion+self.experimento.smc.posicion)
                 self.Actualizar()
             def MoverHaciaAtras():
-                comando = (-1)*float(textoPasoSMC.get())
+                comando = float(textoPasoSMC.get())
                 comandoMultiploDeLaResolucion = self.experimento.smc.resolucion*int(comando/self.experimento.smc.resolucion)
                 textoPasoSMC.delete(0, tk.END)
                 textoPasoSMC.insert(0, str(comandoMultiploDeLaResolucion)) 
-                self.experimento.smc.Mover(comandoMultiploDeLaResolucion+self.experimento.smc.posicion)
+                self.experimento.smc.Mover((-1)*comandoMultiploDeLaResolucion+self.experimento.smc.posicion)
                 self.Actualizar()
             botonIrALaPosicionSMC = tk.Button(raiz, text="Mover", command=IrALaPosicionSMC, font=("Courier",15))
             botonIrALaPosicionSMC.place(x=X+255, y=Y+5, height=30, width=80)
@@ -1015,11 +1037,11 @@ class Programa():
                 self.experimento.mono.Mover(comandoMultiploDeLaResolucion+self.experimento.mono.posicion)
                 self.Actualizar()
             def MoverHaciaAtras():
-                comando = (-1)*float(textoPasoMonocromador.get())
+                comando = float(textoPasoMonocromador.get())
                 comandoMultiploDeLaResolucion = self.experimento.mono.resolucion*int(comando/self.experimento.mono.resolucion)
                 textoPasoMonocromador.delete(0, tk.END)
                 textoPasoMonocromador.insert(0, str(comandoMultiploDeLaResolucion)) 
-                self.experimento.mono.Mover(comandoMultiploDeLaResolucion+self.experimento.mono.posicion)
+                self.experimento.mono.Mover((-1)*comandoMultiploDeLaResolucion+self.experimento.mono.posicion)
                 self.Actualizar()
             botonIrALaPosicionMonocromador = tk.Button(raiz, text="Mover", command=IrALaPosicionMonocromador, font=("Courier",15))
             botonIrALaPosicionMonocromador.place(x=X+255, y=Y+5, height=30, width=80)
@@ -1187,7 +1209,7 @@ class Programa():
             raiz.update()
             medicion = Medicion()
             tiempoDeMedicion = int(self.CalcularTiempoDeMedicionALambdaFija(VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm))                
-            medicion.IniciarVentana(tiempoDeMedicion, 0, self.experimento, nombreArchivo, VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm)
+            medicion.IniciarVentana(self, tiempoDeMedicion, 0, self.experimento, nombreArchivo, VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm)
         botonMedirALambdaFija = tk.Button(raiz, text="Barrer", command=MedirALambdaFija)
         botonMedirALambdaFija.place(x=1545, y=300)
     
@@ -1207,7 +1229,7 @@ class Programa():
             raiz.update()            
             medicion = Medicion()
             tiempoDeMedicion = int(self.CalcularTiempoDeMedicionAPosicionFijaSMC(VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm))
-            medicion.IniciarVentana(tiempoDeMedicion, 1, self.experimento, nombreArchivo, VectorLongitudDeOndaInicial_nm=VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm=VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm=VectorPasoMono_nm)
+            medicion.IniciarVentana(self, tiempoDeMedicion, 1, self.experimento, nombreArchivo, VectorLongitudDeOndaInicial_nm=VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm=VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm=VectorPasoMono_nm)
         botonMedirAPosicionFija = tk.Button(raiz, text="Barrer", command=MedirAPosicionFija)
         botonMedirAPosicionFija.place(x=1545, y=525)
                 
@@ -1237,7 +1259,7 @@ class Programa():
             raiz.update()
             medicion = Medicion()
             tiempoDeMedicion = int(self.CalcularTiempoDeMedicionCompleta(VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm))
-            medicion.IniciarVentana(tiempoDeMedicion, 2, self.experimento, nombreArchivo,  VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
+            medicion.IniciarVentana(self, tiempoDeMedicion, 2, self.experimento, nombreArchivo,  VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
         botonMedirCompletamente = tk.Button(raiz, text="Barrido doble", command=MedirCompletamente)
         botonMedirCompletamente.place(x=1545, y=605)
 
@@ -1245,6 +1267,9 @@ class Programa():
         def AlCerrar():
             self.experimento.smc.address.close()
             self.experimento.mono.address.close()
+            nombreArchivo_CSV = self.panelNombreArchivo.textoNombreArchivo.get()
+            with open('data.txt', 'w') as f:
+                f.write(nombreArchivo_CSV)
             raiz.destroy()
         raiz.protocol("WM_DELETE_WINDOW", AlCerrar)
 
@@ -1333,4 +1358,3 @@ try:
 except:
     print('Exception')
 programa = Programa()
-
