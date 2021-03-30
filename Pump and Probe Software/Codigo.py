@@ -10,6 +10,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import threading as th
 from datetime import date
+import datetime
+from decimal import Decimal
 import os # os_exit(00) restartea el núcleo.
 
 global do_run
@@ -638,7 +640,14 @@ class Medicion():
         totalMinutos = int(tiempoDeMedicion/60)
         minutos = totalMinutos%60
         horas = int(totalMinutos/60)
-        self.labelEstado = tk.Label(self.midiendo, text="Realizando la medicion. Tiempo estimado: " + str(horas) + ' h ' + str(minutos) + ' m ' + str(segundos) + ' s.')
+        hora = datetime.datetime.now()
+        horaActual = int(hora.strftime('%H'))
+        minutoActual = int(hora.strftime('%M'))
+        segundoActual = int(hora.strftime('%S'))
+        segundoFinalizacion = (segundoActual + segundos)%60
+        minutoFinalizacion = ((segundoActual+segundos)//60 + minutoActual)%60
+        horaFinalizacion = horaActual + horas + (((segundoActual+segundos)//60 + minutoActual)//60)
+        self.labelEstado = tk.Label(self.midiendo, text="Realizando la medicion. Tiempo estimado: " + str(horas) + ' h ' + str(minutos) + ' m ' + str(segundos) + ' s. \n Hora estimada de finalización: ' + str(horaFinalizacion) + ':' + str(minutoFinalizacion) + ':' + str(segundoFinalizacion))
         self.labelEstado.place(x=0, y=0)
         def Cancelar():
             global do_run
@@ -1139,7 +1148,8 @@ class Programa():
             self.textoPosicionMonocromador.delete(0, tk.END)
             self.textoPosicionMonocromador.insert(0, str(self.experimento.mono.posicion))
     class PanelBarridoEnDistancia():
-        def __init__(self, raiz, posicion):
+        def __init__(self, raiz, posicion, experimento):
+            self.experimento = experimento
             X = posicion[0] #950
             Y = posicion[1]#140
             labelTituloInicial = tk.Label(raiz, text="Barrido en distancia")
@@ -1158,11 +1168,11 @@ class Programa():
             labelTituloFinal.place(x=X+100, y=Y+45)
             labelTituloPaso = tk.Label(raiz, text="Paso")
             labelTituloPaso.place(x=X+200, y=Y+45)
-    
+            
             self.textosPosicionInicial = list()
             self.textosPosicionFinal = list()
             self.textosPaso = list()
-                    
+            
             def ObtenerSecciones():
                 for i in range(0,len(self.textosPosicionInicial)):
                     self.textosPosicionInicial[i].destroy()
@@ -1179,10 +1189,25 @@ class Programa():
                     self.textosPosicionInicial[i].place(x=X, y=Y+65+i*20)
                     self.textosPosicionFinal[i].place(x=X+100, y=Y+65+i*20)
                     self.textosPaso[i].place(x=X+200, y=Y+65+i*20)
+                
             ObtenerSecciones()    
             botonSiguiente = tk.Button(raiz, text="Ok", command=ObtenerSecciones)
             botonSiguiente.place(x=X+150, y=Y+20)
+        def ChequearResolucionDeLosValores(self):
+            for i in range(0,len(self.textosPaso)):
+                valor = Decimal(self.textosPaso[i].get())
+                resto = valor%Decimal(str(self.experimento.smc.resolucion))
+                if resto != 0:
+                    if resto < (self.experimento.smc.resolucion/2):
+                        valorMultiploDeLaResolucion = round(self.experimento.smc.resolucion*int(round(valor/Decimal(str(self.experimento.smc.resolucion)), 6)), 6)
+                    if resto > (self.experimento.smc.resolucion/2):
+                        valorMultiploDeLaResolucion = round(self.experimento.smc.resolucion*int(round(valor/Decimal(str(self.experimento.smc.resolucion)), 6)), 6) + self.experimento.smc.resolucion
+                    if valorMultiploDeLaResolucion == 0:
+                        valorMultiploDeLaResolucion = self.experimento.smc.resolucion
+                    self.textosPaso[i].delete(0, tk.END)
+                    self.textosPaso[i].insert(0, str(valorMultiploDeLaResolucion))
         def ObtenerValores(self):
+            self.ChequearResolucionDeLosValores()
             VectorPosicionInicialSMC_mm = np.zeros(self.numeroDeSubintervalos)
             VectorPosicionFinalSMC_mm = np.zeros(self.numeroDeSubintervalos)
             VectorPasoSMC_mm = np.zeros(self.numeroDeSubintervalos)
@@ -1192,7 +1217,8 @@ class Programa():
                 VectorPasoSMC_mm[i] = float(self.textosPaso[i].get())            
             return (VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm)
     class PanelBarridoEnLongitudesDeOnda():
-        def __init__(self, raiz, posicion):
+        def __init__(self, raiz, posicion, experimento):
+            self.experimento = experimento
             X = posicion[0]
             Y = posicion[1]
             
@@ -1235,7 +1261,21 @@ class Programa():
             botonSeccionesLongitudDeOnda = tk.Button(raiz, text="Ok", command=ObtenerSeccionesBarridoEnLongitudDeOnda)
             botonSeccionesLongitudDeOnda.place(x=X+150, y=Y+20)
             ObtenerSeccionesBarridoEnLongitudDeOnda()
+        def ChequearResolucionDeLosValores(self):
+            for i in range(0,len(self.textosPasoLongitudDeOnda)):
+                valor = Decimal(self.textosPasoLongitudDeOnda[i].get())
+                resto = valor%Decimal(str(self.experimento.mono.resolucion))
+                if resto != 0:
+                    if resto < (self.experimento.mono.resolucion/2):
+                        valorMultiploDeLaResolucion = round(self.experimento.mono.resolucion*int(round(valor/Decimal(str(self.experimento.mono.resolucion)), 6)), 6)
+                    if resto > (self.experimento.mono.resolucion/2):
+                        valorMultiploDeLaResolucion = round(self.experimento.mono.resolucion*int(round(valor/Decimal(str(self.experimento.mono.resolucion)), 6)), 6) + self.experimento.mono.resolucion
+                    if valorMultiploDeLaResolucion == 0:
+                        valorMultiploDeLaResolucion = self.experimento.mono.resolucion
+                    self.textosPasoLongitudDeOnda[i].delete(0, tk.END)
+                    self.textosPasoLongitudDeOnda[i].insert(0, str(valorMultiploDeLaResolucion))
         def ObtenerValores(self):
+            self.ChequearResolucionDeLosValores()
             VectorLongitudDeOndaInicial_nm = np.zeros(self.numeroDeSubintervalosLongitudDeOnda)
             VectorLongitudDeOndaFinal_nm = np.zeros(self.numeroDeSubintervalosLongitudDeOnda)
             VectorPasoMono_nm = np.zeros(self.numeroDeSubintervalosLongitudDeOnda)
@@ -1280,16 +1320,14 @@ class Programa():
         labelMediciones.place(x=1420, y=100)
 
         # BARRIDO EN POSICIONES DEL SMC #
-        self.panelBarridoEnDistancia = self.PanelBarridoEnDistancia(raiz, (1420,140))
+        self.panelBarridoEnDistancia = self.PanelBarridoEnDistancia(raiz, (1420,140), self.experimento)
 
         def MedirALambdaFija():
             nombreArchivo = self.panelNombreArchivo.textoNombreArchivo.get()
             self.panelNombreArchivo.ActualizarNombreArchivo()
             ejeX = self.panelEjeX.ObtenerValor()
             valoresAGraficar = self.panelValoresAGraficar.ObtenerValores() 
-            VectorPosicionInicialSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()[0]
-            VectorPosicionFinalSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()[1]
-            VectorPasoSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()[2]
+            VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()
             promedioAux = 0
             if self.panelValoresAGraficar.ObtenerPromedioAuxBool():
                 promedioAux = self.experimento.CalcularPromedioAux()
@@ -1304,15 +1342,13 @@ class Programa():
     
         
         #BARRIDO EN LONGITUDES DE ONDA#
-        self.panelBarridoEnLongitudesDeOnda = self.PanelBarridoEnLongitudesDeOnda(raiz, (1420,360))
+        self.panelBarridoEnLongitudesDeOnda = self.PanelBarridoEnLongitudesDeOnda(raiz, (1420,360), self.experimento)
         
         def MedirAPosicionFija():
             nombreArchivo = self.panelNombreArchivo.textoNombreArchivo.get()
             self.panelNombreArchivo.ActualizarNombreArchivo()
             valoresAGraficar = self.panelValoresAGraficar.ObtenerValores()
-            VectorLongitudDeOndaInicial_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()[0]
-            VectorLongitudDeOndaFinal_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()[1]
-            VectorPasoMono_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()[2]            
+            VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()
             promedioAux = 0
             if self.panelValoresAGraficar.ObtenerPromedioAuxBool():
                 promedioAux = self.experimento.CalcularPromedioAux()
@@ -1336,12 +1372,8 @@ class Programa():
         
         # DOBLE BARRIDO #
         def MedirCompletamente():
-            VectorPosicionInicialSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()[0]
-            VectorPosicionFinalSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()[1]
-            VectorPasoSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()[2]
-            VectorLongitudDeOndaInicial_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()[0]
-            VectorLongitudDeOndaFinal_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()[1]
-            VectorPasoMono_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()[2]
+            VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()[0]
+            VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()[0]
             ejeX = self.panelEjeX.ObtenerValor()
             valoresAGraficar = self.panelValoresAGraficar.ObtenerValores()
             nombreArchivo = self.panelNombreArchivo.textoNombreArchivo.get()
