@@ -22,7 +22,7 @@ global tiempoAgregadoPlataforma # Tiempo de espera por paso agregado para la pla
 global numeroParaPromedioAux # Es el número de veces que se itera en un for para calcular el aux. No hay tiempo de espera.
 tiempoAgregadoMonocromador = 1
 tiempoAgregadoPlataforma = 1
-numeroParaPromedioAux = 1000
+numeroParaPromedioAux = 100
 
 #%%%%%%
 
@@ -456,6 +456,7 @@ class Grafico():
         posicionX = np.where(self.VectorX_mm == posicionSMC)
         posicionY = np.where(self.VectorY == posicionMono)
         if hasattr(self, 'listaDeColorbars'):
+            print(len(self.listaDeColorbars))
             for i in range(0,len(self.listaDeColorbars)):
                 self.listaDeColorbars[i].remove()
         self.listaDeColorbars = list()
@@ -608,11 +609,14 @@ class Experimento():
         return b
     def CalcularPromedioAux(self):
         sumaDeAuxs = 0
+        print(numeroParaPromedioAux)
         for i in range(0,numeroParaPromedioAux):
             medicion = self.Adquirir()
+            print(i)
             aux = float(medicion[4])
             sumaDeAuxs = sumaDeAuxs + aux
-        promedio = sumaDeAuxs/numeroParaPromedioAux
+        promedio = round(sumaDeAuxs/numeroParaPromedioAux, 7)
+        print(promedio)
         return promedio
 
 #%%%%
@@ -645,9 +649,17 @@ class Medicion():
         minutoActual = int(hora.strftime('%M'))
         segundoActual = int(hora.strftime('%S'))
         segundoFinalizacion = (segundoActual + segundos)%60
-        minutoFinalizacion = ((segundoActual+segundos)//60 + minutoActual)%60
+        if segundoFinalizacion <10:
+            segundoFinalizacionString = '0' + str(segundoFinalizacion)
+        else:
+            segundoFinalizacionString = str(segundoFinalizacion)
+        minutoFinalizacion = ((segundoActual+segundos)//60 + minutoActual + minutos)%60
+        if minutoFinalizacion < 10:
+            minutoFinalizacionString = '0' + str(minutoFinalizacion)
+        else:
+            minutoFinalizacionString = str(minutoFinalizacion)
         horaFinalizacion = horaActual + horas + (((segundoActual+segundos)//60 + minutoActual)//60)
-        self.labelEstado = tk.Label(self.midiendo, text="Realizando la medicion. Tiempo estimado: " + str(horas) + ' h ' + str(minutos) + ' m ' + str(segundos) + ' s. \n Hora estimada de finalización: ' + str(horaFinalizacion) + ':' + str(minutoFinalizacion) + ':' + str(segundoFinalizacion))
+        self.labelEstado = tk.Label(self.midiendo, text="Realizando la medicion. Tiempo estimado: " + str(horas) + ' h ' + str(minutos) + ' m ' + str(segundos) + ' s. \n Hora estimada de finalización: ' + str(horaFinalizacion) + ':' + minutoFinalizacionString + ':' + segundoFinalizacionString)
         self.labelEstado.place(x=0, y=0)
         def Cancelar():
             global do_run
@@ -928,7 +940,7 @@ class Programa():
                 fecha = date.today()
                 fechaEnFormatoString = fecha.strftime("%Y-%m-%d")
                 if fechaEnFormatoString in self.nombreArchivo:
-                    self.numeroDeMedicion = int((linea1.split('_')[1]).split('.')[0]) + 1
+                    self.numeroDeMedicion = int((linea1.split('_')[1]).split('.')[0])
                 else:
                     self.numeroDeMedicion = 1
     class PanelConversor():
@@ -1372,8 +1384,8 @@ class Programa():
         
         # DOBLE BARRIDO #
         def MedirCompletamente():
-            VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()[0]
-            VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()[0]
+            VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()
+            VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()
             ejeX = self.panelEjeX.ObtenerValor()
             valoresAGraficar = self.panelValoresAGraficar.ObtenerValores()
             nombreArchivo = self.panelNombreArchivo.textoNombreArchivo.get()
