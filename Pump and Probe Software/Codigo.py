@@ -33,7 +33,7 @@ global offsetSMS
 offsetSMS = -87.0
 tiempoAgregadoMonocromador = 1
 tiempoAgregadoPlataforma = 1
-numeroDeAuxsPorSegundo = 50
+numeroDeAuxsPorSegundo = 20
 global fuente
 fuente = "Helvetica"
         
@@ -62,7 +62,7 @@ class SMC():
     def CerrarPuerto(self):
         self.address.close()
     def Configurar(self):    
-        self.velocidadMmPorSegundo = self.LeerVelocidad()
+#        self.velocidadMmPorSegundo = self.LeerVelocidad()
         valor = -1
         estadosReady = ['32','33','34']
         while valor == -1:
@@ -197,8 +197,8 @@ class SMS():
         self.address.write(comando.encode())
         time.sleep(1)
         self.posicion = self.LeerPosicion()
-        self.velocidadNmPorSegundo = self.LeerVelocidad()
-        self.multiplicador = self.LeerMultiplicador()
+#        self.velocidadNmPorSegundo = self.LeerVelocidad()
+#        self.multiplicador = self.LeerMultiplicador()
         if self.posicion < 400:
             self.Mover(400)   
     def LeerVelocidad(self):
@@ -483,8 +483,9 @@ class Experimento():
         numeroTotalDeAuxsAPromediar = segundosAPromediar*numeroDeAuxsPorSegundo
         print(numeroTotalDeAuxsAPromediar)
         for i in range(0,numeroTotalDeAuxsAPromediar):
-            medicion = self.lockin.Adquirir()
+            medicion = self.ArmarVectorDeDatos()
             print(i)
+            time.sleep(0.05)
             aux = float(medicion[4])
             sumaDeAuxs = sumaDeAuxs + aux
         promedio = sumaDeAuxs/numeroTotalDeAuxsAPromediar
@@ -644,7 +645,7 @@ class Grafico():
                         self.listaDeEjesY[i].append(float(VectorAGraficar[2])/self.promedioAux)
                     else:
                         self.listaDeEjesY[i].append(float(VectorAGraficar[2])/float(VectorAGraficar[4]))
-            self.listaDeGraficos[i].plot(self.x, self.listaDeEjesY[i], 'c*')
+            self.listaDeGraficos[i].plot(self.x, self.listaDeEjesY[i], 'r-')
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()   
     def GraficarAPosicionFija(self, VectorAGraficar, posicionSMC, posicionMono):
@@ -663,7 +664,7 @@ class Grafico():
                         self.listaDeEjesY[i].append(float(VectorAGraficar[0])/self.promedioAux)
                     else:
                         self.listaDeEjesY[i].append(float(VectorAGraficar[2])/float(VectorAGraficar[4]))
-            self.listaDeGraficos[i].plot(self.x, self.listaDeEjesY[i], 'c*')
+            self.listaDeGraficos[i].plot(self.x, self.listaDeEjesY[i], 'b-')
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
     def GraficarCompletamente(self, VectorAGraficar, posicionSMC, posicionMono):
@@ -764,7 +765,7 @@ class Medicion():
             if tipoDeMedicion == 0:
                 programa.grafico.Configurar(valoresAGraficar, promedioAux, programa.panelPromedioAux.ObtenerPromedioAuxBool(), 0, ejeX, longitudDeOndaFija_nm=experimento.mono.posicion)
             if tipoDeMedicion == 1:
-                programa.grafico.Configurar(valoresAGraficar, promedioAux, programa.panelPromedioAux.ObtenerPromedioAuxBool(), 1, 0, posicionFijaSMC_mm = self.experimento.smc.posicion)
+                programa.grafico.Configurar(valoresAGraficar, promedioAux, programa.panelPromedioAux.ObtenerPromedioAuxBool(), 1, 0, posicionFijaSMC_mm = experimento.smc.posicion)
             if tipoDeMedicion == 2:
                 programa.grafico.Configurar(valoresAGraficar, promedioAux, programa.panelPromedioAux.ObtenerPromedioAuxBool(), 2, ejeX, VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)            
             experimento.grafico = programa.grafico
@@ -889,7 +890,7 @@ class Configuracion():
             botonCalibrarSMC["state"] = "disabled"   
             botonCambiarVelocidadSMC["state"]="disabled"
             textoVelocidadSMC["state"]="disabled"
-        labelSMCInicializado.place(x=440, y=50)
+        labelSMCInicializado.place(x=460, y=50)
         
         # SMS - MONOCROMADOR #
         def SetearPuertoSMS():
@@ -1007,7 +1008,7 @@ class Configuracion():
             self.c3 = True
             self.experimento.lockin.Configurar()   
             self.c3 = True           
-            labelLockInInicializado.config(text = 'Inicializado')
+            labelLockInInicializado.config(text = 'Inicializado', font=(fuente,12))
         labelLockIn = tk.Label(raizConfiguracion, text = 'Lock-In', font=(fuente,15))
         labelLockIn.place(x=5, y=140)
         textoLockIn = tk.Entry(raizConfiguracion, font=(fuente,15))
@@ -1019,17 +1020,17 @@ class Configuracion():
         botonInicializarLockIn = tk.Button(raizConfiguracion, text = 'Inicializar', command = InicializarLockIn, font=(fuente,12))
         botonInicializarLockIn.place(x=320,y=140)
         if self.b3:
-            labelLockInReconocido = tk.Label(raizConfiguracion, text='Reconocido')
+            labelLockInReconocido = tk.Label(raizConfiguracion, text='Reconocido', font=(fuente,12))
             botonInicializarLockIn["state"] = "normal"
         else:
             labelLockInReconocido = tk.Label(raizConfiguracion)
             botonInicializarLockIn["state"] = "disabled"
         labelLockInReconocido.place(x=200, y=140)
         if self.c3:
-            labelLockInInicializado = tk.Label(raizConfiguracion, text = 'Inicializado')
+            labelLockInInicializado = tk.Label(raizConfiguracion, text = 'Inicializado', font=(fuente,12))
         else:
             labelLockInInicializado = tk.Label(raizConfiguracion)
-        labelLockInInicializado.place(x=460, y=55)
+        labelLockInInicializado.place(x=460, y=140)
         def MenuPrincipal():
             raizConfiguracion.destroy()
             self.programa.PantallaPrincipal()
@@ -1492,9 +1493,9 @@ class Programa():
                 self.textosPasoLongitudDeOnda.clear()
                 self.numeroDeSubintervalosLongitudDeOnda = int(textoNumeroDeSubintervalosLongitudDeOnda.get())
                 for i in range(0,self.numeroDeSubintervalosLongitudDeOnda):
-                    self.textosLongitudDeOndaInicial.append(tk.Entry(raiz,width=15, font=(fuente,10)))
-                    self.textosLongitudDeOndaFinal.append(tk.Entry(raiz,width=15, font=(fuente,10)))
-                    self.textosPasoLongitudDeOnda.append(tk.Entry(raiz,width=15, font=(fuente,10)))
+                    self.textosLongitudDeOndaInicial.append(tk.Entry(raiz,width=15, font=(fuente,15)))
+                    self.textosLongitudDeOndaFinal.append(tk.Entry(raiz,width=15, font=(fuente,15)))
+                    self.textosPasoLongitudDeOnda.append(tk.Entry(raiz,width=15, font=(fuente,15)))
                     self.textosLongitudDeOndaInicial[i].place(x=X, y=Y+130+i*30, height=30, width=115)
                     self.textosLongitudDeOndaFinal[i].place(x=X+125, y=Y+130+i*30, height=30, width=115)
                     self.textosPasoLongitudDeOnda[i].place(x=X+250, y=Y+130+i*30, height=30, width=115)
@@ -1604,8 +1605,8 @@ class Programa():
                 
         # DOBLE BARRIDO #
         def MedirCompletamente():
-            VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()[0]
-            VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()[0]
+            VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm = self.panelBarridoEnDistancia.ObtenerValores()
+            VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm = self.panelBarridoEnLongitudesDeOnda.ObtenerValores()
             self.raiz.update()
             medicion = Medicion()
             tiempoDeMedicion = int(self.CalcularTiempoDeMedicionCompleta(VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm))
