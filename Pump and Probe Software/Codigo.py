@@ -1,3 +1,18 @@
+# PAQUETES IMPORTADOS Y USADOS EN EL CÓDIGO: 
+# Pyserial es para la comunicación serial con el SMC y el SMS
+# Pyvisa es para la comunicación GPIB con el lock in.
+# Time es para dormir la ejecución del código durante un cierto tiempo
+# Csv es para grabar los .csv
+# Tkinter es para la interfaz gráfica de ventanas
+# Canvas y BOTH son para dibujar los recuadros de los paneles de la pantalla principal
+# Numpy es el paquete matemático y de vectores
+# Matplotlib para los gráficos
+# FigureCanvasTkAgg para actualizar los gráficos en la interfaz gráfica
+# Threading para crear líneas de código que se ejecuten paralelamente a la línea principal. Solo se usa en el 
+# panel de medición manual (el de la derecha de la interfaz gráfica)
+# Datetime para importar la hora y día actuales
+# Decimal es para manejar más cómodamente los float que tiran errores difíciles de manejar al hacer operaciones
+
 import serial
 import pyvisa
 import time
@@ -15,25 +30,27 @@ import datetime
 from decimal import Decimal
 import os # os_exit(00) restartea el núcleo.
 
-global do_run
-do_run = True
+
+# VARIABLES GLOBALES
+global do_run # Es una variable usada para cancelar las mediciones. Podría cambiarse para que no sea global
+do_run = True # pasándola a través del código.
 global t
-global tiempoAgregadoMonocromador #Tiempo de espera por paso agregado para el monocromador.
+global tiempoAgregadoMonocromador # Tiempo de espera por paso agregado para el monocromador.
+tiempoAgregadoMonocromador = 1 # (segundos)
 global tiempoAgregadoPlataforma # Tiempo de espera por paso agregado para la plataforma.
-global numeroDeAuxsPorSegundo # Es el número de veces por segundo que se mide el AUX para promediarlo. Se estimó midiéndolo.
-global velocidadSMC_mmPorSegundo
+tiempoAgregadoPlataforma = 1 # (segundos)
+global numeroDeAuxsPorSegundo # Es el número de veces por segundo que se mide el AUX para promediarlo.
+numeroDeAuxsPorSegundo = 20
+global velocidadSMC_mmPorSegundo # Es la que tiene seteada el SMC.
 velocidadSMC_mmPorSegundo = 0.16
-global velocidadSMS_nmPorSegundo
+global velocidadSMS_nmPorSegundo # Calculada a mano con un cronómetro.
 velocidadSMS_nmPorSegundo = 9
 global resolucionSMC
 resolucionSMC_mm = 0.0001 # En mm. Es decir, una resolución de 0.1 micrómetro.
 global resolucionSMS
-resolucionSMS_nm = 0.3125
+resolucionSMS_nm = 0.3125 # en nm. Es para la red de 1200.
 global offsetSMS
-offsetSMS = -87.0
-tiempoAgregadoMonocromador = 1
-tiempoAgregadoPlataforma = 1
-numeroDeAuxsPorSegundo = 20
+offsetSMS = -87.0 # Es el 9913 que muestra el visor al calibrar el monocromador
 global fuente
 fuente = "Helvetica"
         
@@ -42,7 +59,7 @@ fuente = "Helvetica"
 
 class SMC():
     def __init__(self):
-        self.address = serial.Serial( #Crea el puerto pero no lo abre.
+        self.address = serial.Serial( #Crea el puerto pero no lo abre. En el manual están estos valores.
                 port = None,
                 baudrate = 57600,
                 bytesize = 8,
@@ -55,10 +72,10 @@ class SMC():
         self.resolucion = resolucionSMC_mm 
         self.posicion = 0 # Solo para inicializar la variable. Al configurar se lee la posición.
         self.velocidadMmPorSegundo = velocidadSMC_mmPorSegundo
-    def AsignarPuerto(self, puerto):
-        self.address.port = puerto
+    def AsignarPuerto(self, puerto): # Asigna y abre el puerto
+        self.address.port = puerto 
         self.puerto = puerto
-        self.address.open()
+        self.address.open() 
     def CerrarPuerto(self):
         self.address.close()
     def Configurar(self):    
@@ -91,7 +108,7 @@ class SMC():
             lectura = self.LeerBuffer()
             if 'TS' in lectura:
                 valor = lectura.find('32')
-        self.posicion = 0
+        self.posicion = 0 # Podría leerle la posición, pero siempre queda en el cero luego del Homing.
     def LeerVelocidad(self):
         velocidad = 0
         valor = -1
@@ -119,12 +136,12 @@ class SMC():
                 a = lectura.split('\r')[0]
                 b = a.split('TH')[len(a.split('TH'))-1]
                 return abs(round(float(b),5))
-    def Mover(self, PosicionSMC_mm): 
+    def Mover(self, PosicionSMC_mm): # Mueve a la posición especificada.
         comando = '1PA' + str(PosicionSMC_mm) + '\r\n'
         self.address.write(comando.encode())
         PosicionSMC_mm = round(PosicionSMC_mm, 6)
         self.posicion = PosicionSMC_mm
-    def CalcularTiempoSleep(self, PosicionSMC_mm):
+    def CalcularTiempoSleep(self, PosicionSMC_mm): # El código deja de ejecutarse hasta que el SMC se mueva.
         TiempoSMC = 0
         if (PosicionSMC_mm-self.posicion) == 0:
             time.sleep(0.1)
@@ -141,7 +158,7 @@ class SMC():
             lectura = lectura.decode('windows-1252')
             lecturaTotal = lecturaTotal + lectura
         return lecturaTotal      
-    def Identificar(self):
+    def Identificar(self): 
         b = False
         i=0
         while i < 4:
@@ -172,7 +189,7 @@ class SMC():
         
 class SMS():
     def __init__(self):
-        self.address = serial.Serial( #Crea el puerto, no lo abre.
+        self.address = serial.Serial( # Crea el puerto, no lo abre. Los valores están en el manual.
                 port = None,
                 baudrate = 9600,
                 bytesize = 8,
@@ -186,13 +203,13 @@ class SMS():
         self.resolucion = resolucionSMS_nm # La resolución es la inversa del multiplicador.
         self.posicion = 0
         self.velocidadNmPorSegundo = velocidadSMS_nmPorSegundo
-    def AsignarPuerto(self, puerto):
+    def AsignarPuerto(self, puerto): # Asigna y abre el puerto.
         self.address.port = puerto
         self.puerto = puerto     
         self.address.open()
-    def CerrarPuerto(self):
+    def CerrarPuerto(self): 
         self.address.close()
-    def Configurar(self): # AGREGAR SETEO DE MULT Y OFFSET PARA CAMBIAR DE RED
+    def Configurar(self): 
         comando = '#SLM\r3\r'
         self.address.write(comando.encode())
         time.sleep(1)
@@ -201,7 +218,7 @@ class SMS():
 #        self.multiplicador = self.LeerMultiplicador()
         if self.posicion < 400:
             self.Mover(400)   
-    def LeerVelocidad(self):
+    def LeerVelocidad(self): 
         valor = -1
         while valor == -1:
             self.address.write(b'#RD?\r3\r')
@@ -303,7 +320,7 @@ class SMS():
 class LockIn():
     def __init__(self):
         self.TiempoDeIntegracionTotal = 0
-    def AsignarPuerto(self, puerto):
+    def AsignarPuerto(self, puerto): # Crea, asigna y abre el puerto
         rm = pyvisa.ResourceManager()
         comando = 'GPIB0::' + puerto + '::INSTR'
         self.address = rm.open_resource(comando)
@@ -334,7 +351,7 @@ class LockIn():
         self.address.write("LOCL0") #Setea control en Local=0, Remote=1, Remote Lockout=2
         time.sleep(0.2)
         self.SetearNumeroDeConstantesDeIntegracion(1)
-    def ConstanteDeIntegracion(self):
+    def ConstanteDeIntegracion(self): # Le pregunta la constante de integración al Lock In
         constanteDeIntegracion = 0
         a = self.address.query("OFLT?")
         a = a.replace('\n','')
@@ -344,7 +361,8 @@ class LockIn():
         else:
             constanteDeIntegracion = 30*(10**(-6))*(10**((a-1)/2))
         return constanteDeIntegracion
-    def SetearNumeroDeConstantesDeIntegracion(self, numeroDeConstantesDeTiempo):
+    def SetearNumeroDeConstantesDeIntegracion(self, numeroDeConstantesDeTiempo): # El número de constantes de tiempo
+        # es un número por el que se multiplica la constate de tiempo del lock in para tener mayor libertad.
         self.numeroDeConstantesDeTiempo = numeroDeConstantesDeTiempo
         self.TiempoDeIntegracionTotal = self.CalcularTiempoDeIntegracion()
     def CalcularTiempoDeIntegracion(self):
@@ -357,7 +375,7 @@ class LockIn():
         if 'SR830' in lectura:
             b = True
         return b
-    def Adquirir(self):
+    def Adquirir(self): # Devuelve un string separado en comas con las cantidades
         a = self.address.query("SNAP?1,2{,3,4,5,9}") # X,Y,R,THETA,AUX1,FREC
         a = a.replace('\n','')
         return a
@@ -365,7 +383,8 @@ class LockIn():
 
 #%%%
 
-class Experimento():
+class Experimento(): # Esta clase hace las iteraciones para los barridos. También desarma el string del Lock In 
+    # para devolver un vector.
     def __init__(self):
         self.smc = SMC()
         self.mono = SMS()
@@ -475,17 +494,19 @@ class Experimento():
         a = a + ',' + str(self.smc.posicion) + ',' + str(self.mono.posicion)
         b = a.split(',')
         return b
-    def CalcularPromedioAux(self, segundosAPromediar):
+    def CalcularPromedioAux(self, segundosAPromediar): # Calcula un promedio del aux si se tildea la Box correspondiente.
+        # Es para los gráficos que tienen el AUX diviendo.
         promedio = 0
         if segundosAPromediar == 0:
             return promedio
         sumaDeAuxs = 0
         numeroTotalDeAuxsAPromediar = segundosAPromediar*numeroDeAuxsPorSegundo
+        tiempoADormirEnCadaMedicion = 1/numeroDeAuxsPorSegundo
         print(numeroTotalDeAuxsAPromediar)
         for i in range(0,numeroTotalDeAuxsAPromediar):
             medicion = self.ArmarVectorDeDatos()
             print(i)
-            time.sleep(0.05)
+            time.sleep(tiempoADormirEnCadaMedicion)
             aux = float(medicion[4])
             sumaDeAuxs = sumaDeAuxs + aux
         promedio = sumaDeAuxs/numeroTotalDeAuxsAPromediar
@@ -493,7 +514,7 @@ class Experimento():
 
 #%%%        
 
-class Grafico(): 
+class Grafico(): # Es la clase que maneja la figura que contiene los gráficos.
     def __init__(self):
         self.fig = plt.figure(figsize=(18,12), linewidth=10, edgecolor="#04253a")
     def Configurar(self, valoresAGraficar, promedioAux, promedioAuxBool, TipoDeMedicion, ejeX, VectorPosicionInicialSMC_mm = 0, VectorPosicionFinalSMC_mm = 0, VectorPasoSMC_mm = 0, VectorLongitudDeOndaInicial_nm = 0, VectorLongitudDeOndaFinal_nm = 0, VectorPasoMono_nm = 0, longitudDeOndaFija_nm = 0, posicionFijaSMC_mm = 0):
@@ -708,13 +729,17 @@ class Grafico():
             self.GraficarCompletamente(VectorAGraficar, posicionSMC, posicionMono)
 
 #%%%%
-        
+# Esta sección, con sus clases, maneja toda la interfaz gráfica. Hay 4 ventanas en total:
+# Configuración: es la inicial
+# Ventana principal (es Programa). Está separada en muchos paneles para simplificar su ubicación en la interfaz.
+# Advertencia: es la que aparece para dar aviso o ayudas.
+# Medición: es la que aparece al iniciar los barridos.
 class Advertencia():
     def __init__(self, titulo, texto):
         advertencia = tk.Tk()
         advertencia.title(titulo)
         ws, hs = advertencia.winfo_screenwidth(), advertencia.winfo_screenheight()
-        advertencia.geometry('%dx%d+%d+%d' % (500, 200,ws/3 ,hs/3 ))
+        advertencia.geometry('%dx%d+%d+%d' % (500, 200, ws/3, hs/3))
         labelExplicacion = tk.Label(advertencia, text = texto, font=(fuente,12))
         labelExplicacion.place(x=0, y=0)
         def Cerrar():
@@ -728,7 +753,8 @@ class Medicion():
         do_run = True
         self.midiendo = tk.Tk()
         self.midiendo.title('Midiendo')
-        self.midiendo.geometry('300x100')
+        ws, hs = self.midiendo.winfo_screenwidth(), self.midiendo.winfo_screenheight()
+        self.midiendo.geometry('%dx%d+%d+%d' % (500, 120, ws/3 , hs/70))
         segundos = tiempoDeMedicion%60
         totalMinutos = int(tiempoDeMedicion/60)
         minutos = totalMinutos%60
@@ -738,9 +764,13 @@ class Medicion():
         minutoActual = int(hora.strftime('%M'))
         segundoActual = int(hora.strftime('%S'))
         segundoFinalizacion = (segundoActual + segundos)%60
-        minutoFinalizacion = ((segundoActual+segundos)//60 + minutoActual)%60
-        horaFinalizacion = horaActual + horas + (((segundoActual+segundos)//60 + minutoActual)//60)
-        self.labelEstado = tk.Label(self.midiendo, text="Realizando la medicion. Tiempo estimado: " + str(horas) + ' h ' + str(minutos) + ' m ' + str(segundos) + ' s. \n Hora estimada de finalización: ' + str(horaFinalizacion) + ':' + str(minutoFinalizacion) + ':' + str(segundoFinalizacion))
+        minutoFinalizacion = ((segundoActual+segundos)//60 + minutoActual + minutos)%60
+        horaFinalizacion = horaActual + horas + (((segundoActual+segundos)//60 + minutoActual + minutos)//60)
+        if segundoFinalizacion < 10:
+            segundoFinalizacion = '0' + str(segundoFinalizacion)
+        if minutoFinalizacion < 10:
+            minutoFinalizacion = '0' + str(minutoFinalizacion)
+        self.labelEstado = tk.Label(self.midiendo, text="Realizando la medicion. Tiempo estimado: " + str(horas) + ' h ' + str(minutos) + ' m ' + str(segundos) + ' s. \n Hora estimada de finalización: ' + str(horaFinalizacion) + ':' + str(minutoFinalizacion) + ':' + str(segundoFinalizacion), font=(fuente,12))
         self.labelEstado.place(x=0, y=0)
         def Cancelar():
             global do_run
@@ -749,12 +779,12 @@ class Medicion():
             programa.panelJoggingPlataforma.Actualizar()
             programa.panelJoggingRedDeDifraccion.Actualizar()
             self.midiendo.destroy()
-        botonCancelar = tk.Button(self.midiendo, text = 'Cancelar', command = Cancelar)
-        botonCancelar.place(x=70, y = 40)
+        botonCancelar = tk.Button(self.midiendo, text = 'Cancelar', command = Cancelar, font=(fuente,12))
+        botonCancelar.place(x=70, y = 60, height=35, width=80)
         def Finalizar():
             self.midiendo.destroy()
-        self.botonFinalizar = tk.Button(self.midiendo, text = 'Finalizar', command = Finalizar)
-        self.botonFinalizar.place(x=200, y = 40)
+        self.botonFinalizar = tk.Button(self.midiendo, text = 'Finalizar', command = Finalizar, font=(fuente,12))
+        self.botonFinalizar.place(x=200, y = 60, height=35, width=80)
         self.botonFinalizar["state"]="disabled"
         def Medir():
             nombreArchivo = programa.panelNombreArchivo.textoNombreArchivo.get()
@@ -784,7 +814,7 @@ class Medicion():
         self.midiendo.mainloop()
     def CambiarEstadoAFinalizado(self, nombreArchivo):
         self.botonFinalizar["state"]="normal"
-        self.labelEstado = tk.Label(self.midiendo, text="Medicion Finalizada. El archivo ha sido guardado con el\n nombre: " + nombreArchivo)
+        self.labelEstado = tk.Label(self.midiendo, text="Medicion Finalizada. El archivo ha sido guardado con el\n nombre: " + nombreArchivo, font=(fuente,12))
         self.labelEstado.place(x=0, y=0)                       
 class Configuracion():
     def __init__(self, experimento, programa):
@@ -1165,7 +1195,7 @@ class Programa():
             textofs.place(x=X+340, y=Y+17, height=40 ,width=100)
             def ConvertirAfs():
                 mm = textomm.get()
-                fs = round(float(mm)*6666.666,2)
+                fs = round(float(mm)*6666.666,1)
                 textofs.delete(0, tk.END)
                 textofs.insert(tk.END, fs)
             def ConvertirAmm():
@@ -1232,17 +1262,17 @@ class Programa():
                     time.sleep(self.experimento.lockin.TiempoDeIntegracionTotal)
                     vectorDeStringsDeDatos = self.experimento.ArmarVectorDeDatos()
                     textoX.delete(0, tk.END)
-                    textoX.insert(tk.END, str(round(float(vectorDeStringsDeDatos[0]), 6)))
+                    textoX.insert(tk.END, str('{:.6f}'.format(round(float(vectorDeStringsDeDatos[0]), 6))))
                     textoY.delete(0, tk.END)
-                    textoY.insert(tk.END, str(round(float(vectorDeStringsDeDatos[1]), 6)))
+                    textoY.insert(tk.END, str('{:.6f}'.format(round(float(vectorDeStringsDeDatos[1]), 6))))
                     textoR.delete(0, tk.END)
-                    textoR.insert(tk.END, str(round(float(vectorDeStringsDeDatos[2]), 6)))
+                    textoR.insert(tk.END, str('{:.6f}'.format(round(float(vectorDeStringsDeDatos[2]), 6))))
                     textoTheta.delete(0, tk.END)
                     textoTheta.insert(tk.END, str(round(float(vectorDeStringsDeDatos[3]), 6)))
                     textoAuxIn.delete(0, tk.END)
-                    textoAuxIn.insert(tk.END, str(round(float(vectorDeStringsDeDatos[4]), 6)))
+                    textoAuxIn.insert(tk.END, str('{:.6f}'.format(round(float(vectorDeStringsDeDatos[4]), 6))))
                     textoFrecuencia.delete(0, tk.END)
-                    textoFrecuencia.insert(tk.END, str(round(float(vectorDeStringsDeDatos[5]), 6))) 
+                    textoFrecuencia.insert(tk.END, str(round(float(vectorDeStringsDeDatos[5]), 6)))
                     cocienteXConAux = 0
                     cocienteRConAux = 0
                     if float(vectorDeStringsDeDatos[4]) != 0:
@@ -1252,9 +1282,9 @@ class Programa():
                         cocienteXConAux = float('inf')
                         cocienteRConAux = float('inf')
                     textoCocienteXConAuxIn.delete(0, tk.END)
-                    textoCocienteXConAuxIn.insert(tk.END, str(cocienteXConAux))
+                    textoCocienteXConAuxIn.insert(tk.END, str('{:.6f}'.format(cocienteXConAux)))
                     textoCocienteRConAuxIn.delete(0, tk.END)
-                    textoCocienteRConAuxIn.insert(tk.END, str(cocienteRConAux)) 
+                    textoCocienteRConAuxIn.insert(tk.END, str('{:.6f}'.format(cocienteRConAux))) 
             def FrenarMedicion():
                 t.do_run = False
             botonIniciarMedicion = tk.Button(raiz, text="Iniciar", command=IniciarMedicion,font=(fuente, 20))
@@ -1270,7 +1300,7 @@ class Programa():
             labelTitulo.place(x=X+15, y=Y+5)
             
             def Ayuda():
-                Advertencia('Información', 'La constante de tiempo se maneja desde el Lock-In manualmente. \n Desde acá se setea cuántas de esas constantes de tiempo se debe esperar. \n El default de 1 es para esperar el tiempo dado por la constante de tiempo.')
+                Advertencia('Información', 'La constante de tiempo se maneja desde el Lock-In manualmente. \n Desde acá se setea cuántas de esas constantes de tiempo\n se debe esperar.  El default de 1 es para esperar el tiempo dado por\n la constante de tiempo.')
             botonAyuda = tk.Button(raiz, text="?", command=Ayuda, font=(fuente,15))
             botonAyuda.place(x=X+190, y=Y+10, height=30, width=30)
             
@@ -1401,7 +1431,7 @@ class Programa():
             textoNumeroDeSubintervalos = tk.Entry(raiz, font=(fuente,15))
             textoNumeroDeSubintervalos.place(x=X+130, y=Y+45, height=35, width=40)
             textoNumeroDeSubintervalos.delete(0, tk.END)
-            textoNumeroDeSubintervalos.insert(0, '1')        
+            textoNumeroDeSubintervalos.insert(0, '5')        
         
             labelTituloInicial = tk.Label(raiz, text="Pos. Inicial", font=(fuente,10))
             labelTituloInicial.place(x=X, y=Y+100)
@@ -1436,26 +1466,28 @@ class Programa():
             botonSiguiente.place(x=X+180, y=Y+40, height=40, width=40)
         def ChequearResolucionDeLosValores(self):
             for i in range(0,len(self.textosPaso)):
-                valor = Decimal(self.textosPaso[i].get())
-                resto = valor%Decimal(str(self.experimento.smc.resolucion))
-                if resto != 0:
-                    if resto < (self.experimento.smc.resolucion/2):
-                        valorMultiploDeLaResolucion = round(self.experimento.smc.resolucion*int(round(valor/Decimal(str(self.experimento.smc.resolucion)), 6)), 6)
-                    if resto > (self.experimento.smc.resolucion/2):
-                        valorMultiploDeLaResolucion = round(self.experimento.smc.resolucion*int(round(valor/Decimal(str(self.experimento.smc.resolucion)), 6)), 6) + self.experimento.smc.resolucion
-                    if valorMultiploDeLaResolucion == 0:
-                        valorMultiploDeLaResolucion = self.experimento.smc.resolucion
-                    self.textosPaso[i].delete(0, tk.END)
-                    self.textosPaso[i].insert(0, str(valorMultiploDeLaResolucion))
+                if self.textosPaso[i].get() != '':
+                    valor = Decimal(self.textosPaso[i].get())
+                    resto = valor%Decimal(str(self.experimento.smc.resolucion))
+                    if resto != 0:
+                        if resto < (self.experimento.smc.resolucion/2):
+                            valorMultiploDeLaResolucion = round(self.experimento.smc.resolucion*int(round(valor/Decimal(str(self.experimento.smc.resolucion)), 6)), 6)
+                        if resto > (self.experimento.smc.resolucion/2):
+                            valorMultiploDeLaResolucion = round(self.experimento.smc.resolucion*int(round(valor/Decimal(str(self.experimento.smc.resolucion)), 6)), 6) + self.experimento.smc.resolucion
+                        if valorMultiploDeLaResolucion == 0:
+                            valorMultiploDeLaResolucion = self.experimento.smc.resolucion
+                        self.textosPaso[i].delete(0, tk.END)
+                        self.textosPaso[i].insert(0, str(valorMultiploDeLaResolucion))
         def ObtenerValores(self):
             self.ChequearResolucionDeLosValores()
-            VectorPosicionInicialSMC_mm = np.zeros(self.numeroDeSubintervalos)
-            VectorPosicionFinalSMC_mm = np.zeros(self.numeroDeSubintervalos)
-            VectorPasoSMC_mm = np.zeros(self.numeroDeSubintervalos)
+            VectorPosicionInicialSMC_mm = list()
+            VectorPosicionFinalSMC_mm = list()
+            VectorPasoSMC_mm = list()
             for i in range(0,self.numeroDeSubintervalos):
-                VectorPosicionInicialSMC_mm[i] = float(self.textosPosicionInicial[i].get())
-                VectorPosicionFinalSMC_mm[i] = float(self.textosPosicionFinal[i].get())
-                VectorPasoSMC_mm[i] = float(self.textosPaso[i].get())            
+                if self.textosPosicionInicial[i].get() != '' and self.textosPosicionFinal[i].get() != '' and self.textosPaso[i].get() != '':
+                    VectorPosicionInicialSMC_mm.append(float(self.textosPosicionInicial[i].get()))
+                    VectorPosicionFinalSMC_mm.append(float(self.textosPosicionFinal[i].get()))
+                    VectorPasoSMC_mm.append(float(self.textosPaso[i].get()))            
             return (VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm)
     class PanelBarridoEnLongitudesDeOnda():
         def __init__(self, raiz, posicion, experimento):
@@ -1470,7 +1502,7 @@ class Programa():
             textoNumeroDeSubintervalosLongitudDeOnda = tk.Entry(raiz, font=(fuente,15))
             textoNumeroDeSubintervalosLongitudDeOnda.place(x=X+130, y=Y+45, height=35, width=40)
             textoNumeroDeSubintervalosLongitudDeOnda.delete(0, tk.END)
-            textoNumeroDeSubintervalosLongitudDeOnda.insert(0, '1')        
+            textoNumeroDeSubintervalosLongitudDeOnda.insert(0, '5')        
 
             labelTituloLongitudDeOndaInicial = tk.Label(raiz, text="\u03BB Inicial", font=(fuente,10))
             labelTituloLongitudDeOndaInicial.place(x=X, y=Y+100)
@@ -1504,26 +1536,28 @@ class Programa():
             ObtenerSeccionesBarridoEnLongitudDeOnda()
         def ChequearResolucionDeLosValores(self):
             for i in range(0,len(self.textosPasoLongitudDeOnda)):
-                valor = Decimal(self.textosPasoLongitudDeOnda[i].get())
-                resto = valor%Decimal(str(self.experimento.mono.resolucion))
-                if resto != 0:
-                    if resto < (self.experimento.mono.resolucion/2):
-                        valorMultiploDeLaResolucion = round(self.experimento.mono.resolucion*int(round(valor/Decimal(str(self.experimento.mono.resolucion)), 6)), 6)
-                    if resto > (self.experimento.mono.resolucion/2):
-                        valorMultiploDeLaResolucion = round(self.experimento.mono.resolucion*int(round(valor/Decimal(str(self.experimento.mono.resolucion)), 6)), 6) + self.experimento.mono.resolucion
-                    if valorMultiploDeLaResolucion == 0:
-                        valorMultiploDeLaResolucion = self.experimento.mono.resolucion
-                    self.textosPasoLongitudDeOnda[i].delete(0, tk.END)
-                    self.textosPasoLongitudDeOnda[i].insert(0, str(valorMultiploDeLaResolucion))
+                if self.textosPasoLongitudDeOnda[i].get() != '':
+                    valor = Decimal(self.textosPasoLongitudDeOnda[i].get())
+                    resto = valor%Decimal(str(self.experimento.mono.resolucion))
+                    if resto != 0:
+                        if resto < (self.experimento.mono.resolucion/2):
+                            valorMultiploDeLaResolucion = round(self.experimento.mono.resolucion*int(round(valor/Decimal(str(self.experimento.mono.resolucion)), 6)), 6)
+                        if resto > (self.experimento.mono.resolucion/2):
+                            valorMultiploDeLaResolucion = round(self.experimento.mono.resolucion*int(round(valor/Decimal(str(self.experimento.mono.resolucion)), 6)), 6) + self.experimento.mono.resolucion
+                        if valorMultiploDeLaResolucion == 0:
+                            valorMultiploDeLaResolucion = self.experimento.mono.resolucion
+                        self.textosPasoLongitudDeOnda[i].delete(0, tk.END)
+                        self.textosPasoLongitudDeOnda[i].insert(0, str(valorMultiploDeLaResolucion))
         def ObtenerValores(self):
             self.ChequearResolucionDeLosValores()
-            VectorLongitudDeOndaInicial_nm = np.zeros(self.numeroDeSubintervalosLongitudDeOnda)
-            VectorLongitudDeOndaFinal_nm = np.zeros(self.numeroDeSubintervalosLongitudDeOnda)
-            VectorPasoMono_nm = np.zeros(self.numeroDeSubintervalosLongitudDeOnda)
+            VectorLongitudDeOndaInicial_nm = list()
+            VectorLongitudDeOndaFinal_nm = list()
+            VectorPasoMono_nm = list()
             for i in range(0,self.numeroDeSubintervalosLongitudDeOnda):
-                VectorLongitudDeOndaInicial_nm[i] = float(self.textosLongitudDeOndaInicial[i].get())
-                VectorLongitudDeOndaFinal_nm[i] = float(self.textosLongitudDeOndaFinal[i].get())
-                VectorPasoMono_nm[i] = float(self.textosPasoLongitudDeOnda[i].get())
+                if self.textosLongitudDeOndaInicial[i].get() != '' and self.textosLongitudDeOndaFinal[i].get() != '' and self.textosPasoLongitudDeOnda[i].get() != '':
+                    VectorLongitudDeOndaInicial_nm.append(float(self.textosLongitudDeOndaInicial[i].get()))
+                    VectorLongitudDeOndaFinal_nm.append(float(self.textosLongitudDeOndaFinal[i].get()))
+                    VectorPasoMono_nm.append(float(self.textosPasoLongitudDeOnda[i].get()))
             return (VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
     def PantallaPrincipal(self):
         self.raiz = tk.Tk()
@@ -1590,7 +1624,6 @@ class Programa():
         botonMedirALambdaFija = tk.Button(self.raiz, text="Barrer", command=MedirALambdaFija, font=(fuente,15))
         botonMedirALambdaFija.place(x=1580, y=300, height=40, width=115)
     
-        
         #BARRIDO EN LONGITUDES DE ONDA#
         self.panelBarridoEnLongitudesDeOnda = self.PanelBarridoEnLongitudesDeOnda(self.raiz, (1330,360), self.experimento)
         
@@ -1610,7 +1643,7 @@ class Programa():
             self.raiz.update()
             medicion = Medicion()
             tiempoDeMedicion = int(self.CalcularTiempoDeMedicionCompleta(VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm))
-            medicion.IniciarVentana(self, tiempoDeMedicion, 2, self.experimento, nombreArchivo,  VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
+            medicion.IniciarVentana(self, tiempoDeMedicion, 2, self.experimento, VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
         botonMedirCompletamente = tk.Button(self.raiz, text="Barrido doble", command=MedirCompletamente, font=(fuente,15))
         botonMedirCompletamente.place(x=1455, y=695, height=40, width=240)
  
@@ -1720,7 +1753,7 @@ class Programa():
         TiempoLockIn = CantidadDeMovimientosSMCTotal*CantidadDeMovimientosMonoTotal*(self.experimento.lockin.TiempoDeIntegracionTotal)       
         TiempoTotal = TiempoMonocromador + TiempoSMCTotal + TiempoLockIn        
         if self.panelPromedioAux.ObtenerPromedioAuxBool():
-            TiempoDeMedicion = TiempoDeMedicion + self.panelPromedioAux.ObtenerSegundosAPromediar()
+            TiempoTotal = TiempoTotal + self.panelPromedioAux.ObtenerSegundosAPromediar()
         return TiempoTotal
 try:
     programa.experimento.smc.CerrarPuerto()
