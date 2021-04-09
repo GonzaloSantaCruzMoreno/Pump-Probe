@@ -406,7 +406,8 @@ class Experimento(): # Esta clase hace las iteraciones para los barridos. TambiÃ
                 self.AdquirirGraficarYGrabarCSV()
             if i>0 and VectorPosicionInicialSMC_mm[i] != VectorPosicionFinalSMC_mm[i-1]:
                 self.AdquirirGraficarYGrabarCSV()
-            numeroDePasos = abs(int((VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])/VectorPasoSMC_mm[i]))
+            numeroDePasos = abs(int(round((VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])/VectorPasoSMC_mm[i], 6)))
+            print(numeroDePasos)
             for j in range(0,numeroDePasos):
                 if do_run == False:
                     return
@@ -431,7 +432,7 @@ class Experimento(): # Esta clase hace las iteraciones para los barridos. TambiÃ
                 self.AdquirirGraficarYGrabarCSV()
             if i>0 and VectorLongitudDeOndaInicial_nm[i] != VectorLongitudDeOndaFinal_nm[i-1]:
                 self.AdquirirGraficarYGrabarCSV()
-            numeroDePasos = abs(int((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i]))
+            numeroDePasos = abs(int(round((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i], 6)))
             for j in range(0,numeroDePasos):
                 if do_run == False:
                     return
@@ -454,7 +455,7 @@ class Experimento(): # Esta clase hace las iteraciones para los barridos. TambiÃ
             tiempoDeSleep = self.mono.CalcularTiempoSleep(VectorLongitudDeOndaInicial_nm[i])
             self.mono.Mover(VectorLongitudDeOndaInicial_nm[i])
             time.sleep(tiempoDeSleep)
-            numeroDePasosMono = abs(int((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i]))
+            numeroDePasosMono = abs(int(round((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i], 6)))
             for j in range(0,numeroDePasosMono+1):
                 if do_run == False:
                     return
@@ -468,7 +469,7 @@ class Experimento(): # Esta clase hace las iteraciones para los barridos. TambiÃ
                         self.AdquirirGraficarYGrabarCSV()
                     if k>0 and VectorPosicionInicialSMC_mm[k] != VectorPosicionFinalSMC_mm[k-1]:
                         self.AdquirirGraficarYGrabarCSV()
-                    numeroDePasosSMC = abs(int((VectorPosicionFinalSMC_mm[k]-VectorPosicionInicialSMC_mm[k])/VectorPasoSMC_mm[k]))
+                    numeroDePasosSMC = abs(int(round((VectorPosicionFinalSMC_mm[k]-VectorPosicionInicialSMC_mm[k])/VectorPasoSMC_mm[k], 6)))
                     for l in range(0,numeroDePasosSMC):
                         if do_run == False:
                             return
