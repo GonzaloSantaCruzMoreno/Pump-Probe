@@ -511,7 +511,7 @@ class Experimento(): # Esta clase hace las iteraciones para los barridos. Tambi�
             aux = float(medicion[4])
             sumaDeAuxs = sumaDeAuxs + aux
         promedio = sumaDeAuxs/numeroTotalDeAuxsAPromediar
-        return promedio
+        return round(promedio, 6)
 
 #%%%        
 
@@ -670,6 +670,7 @@ class Grafico(): # Es la clase que maneja la figura que contiene los gráficos.
             self.listaDeGraficos[i].plot(self.x, self.listaDeEjesY[i], 'r-')
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()   
+        plt.tight_layout()
     def GraficarAPosicionFija(self, VectorAGraficar, posicionSMC, posicionMono):
         self.x.append(posicionMono)
         for i in range(0,self.cantidadDeValoresAGraficar):
@@ -689,6 +690,7 @@ class Grafico(): # Es la clase que maneja la figura que contiene los gráficos.
             self.listaDeGraficos[i].plot(self.x, self.listaDeEjesY[i], 'b-')
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
+        plt.tight_layout()
     def GraficarCompletamente(self, VectorAGraficar, posicionSMC, posicionMono):
         posicionX = np.where(self.VectorX_mm == posicionSMC)
         posicionY = np.where(self.VectorY == posicionMono)
@@ -719,6 +721,7 @@ class Grafico(): # Es la clase que maneja la figura que contiene los gráficos.
             self.listaDeColorbars.append(self.fig.colorbar(self.listaDePlots[i],cax=cax))
         self.fig.canvas.draw()
         self.fig.canvas.flush_events() 
+        plt.tight_layout()
     def GuardarGrafico(self, nombreArchivo):
         self.fig.savefig('Plots/' + nombreArchivo, dpi=200)
     def Graficar(self, VectorAGraficar, posicionSMC, posicionMono):
@@ -788,6 +791,7 @@ class Medicion():
         self.botonFinalizar.place(x=200, y = 60, height=35, width=80)
         self.botonFinalizar["state"]="disabled"
         def Medir():
+            self.midiendo.update()
             nombreArchivo = programa.panelNombreArchivo.textoNombreArchivo.get()
             programa.panelNombreArchivo.ActualizarNombreArchivo()
             ejeX = programa.panelEjeX.ObtenerValor()
