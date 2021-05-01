@@ -40,22 +40,30 @@ tiempoAgregadoMonocromador = 1 # (segundos)
 global tiempoAgregadoPlataforma # Tiempo de espera por paso agregado para la plataforma.
 tiempoAgregadoPlataforma = 1 # (segundos)
 global numeroDeAuxsPorSegundo # Es el número de veces por segundo que se mide el AUX para promediarlo.
-numeroDeAuxsPorSegundo = 20
-global velocidadSMC_mmPorSegundo # Es la que tiene seteada el SMC.
+numeroDeAuxsPorSegundo = 20 # Se puede agrandar hasta que el LockIn responda bien.
+global velocidadSMC_mmPorSegundo # Es la que tiene seteada el SMC. Se puede leer y modificar. Falta probar el código.
 velocidadSMC_mmPorSegundo = 0.16
-global velocidadSMS_nmPorSegundo # Calculada a mano con un cronómetro.
-velocidadSMS_nmPorSegundo = 9
+global velocidadSMS_nmPorSegundo # Calculada a mano con un cronómetro. Se podría leer y modificar. Falta probar el 
+velocidadSMS_nmPorSegundo = 9    # código. La variable que se puede modificar es un valor inverso de la velocidad.
 global resolucionSMC
-resolucionSMC_mm = 0.0001 # En mm. Es decir, una resolución de 0.1 micrómetro.
+resolucionSMC_mm = 0.0001 # En mm. Es decir, una resolución de 0.1 micrómetro. Esta resolución es inmodificable.
 global resolucionSMS
-resolucionSMS_nm = 0.3125 # en nm. Es para la red de 1200.
-global offsetSMS
+resolucionSMS_nm = 0.3125 # en nm. Es para la red de 1200. OBS: De acuerdo al manual la resolución debería ser de
+global offsetSMS          # 0.03125 (la inversa de 32, que es el multiplicador). Sin embargo, en la hoja de internet
+                          # del fabricante dice que la resolución es de 0.3125. Creo que el motor no funciona dando
+                          # los pasos mínimos. Quizás sí, y la resolución es de 0.03125. Se puede probar..
 offsetSMS = -87.0 # Es el 9913 que muestra el visor al calibrar el monocromador
 global fuente
 fuente = "Helvetica"
         
+# OBS: En el código se usa SMC y plataforma para referirse a lo mismo. Lo mismo pasa con el SMS y el monocromador.
 
 #%%%%%%
+
+# El SMC100PP es el controlador de la plataforma de retardo (la plataforma la mueve un tornillo micrométrico llamado
+# TRAPPD25). El controlador está conectado a la PC por un USB que simula un puerto
+# serie RS-232. Hay un driver (que se instala automáticamente) que hace que se vea directamente el puerto serie
+# sin ver el USB. En la clase de aquí abajo se abre este puerto serie (no se maneja el USB, digamos).
 
 class SMC():
     def __init__(self):
@@ -69,9 +77,10 @@ class SMC():
                 xonxoff = True,
                 rtscts = False,
                 dsrdtr = False)
-        self.resolucion = resolucionSMC_mm 
+        self.resolucion = resolucionSMC_mm # Se le asigna la variable global.
         self.posicion = 0 # Solo para inicializar la variable. Al configurar se lee la posición.
-        self.velocidadMmPorSegundo = velocidadSMC_mmPorSegundo
+        self.velocidadMmPorSegundo = velocidadSMC_mmPorSegundo # Es la variable global. Se puede descomentar y probar
+                                                               # el código para leer y modificar la velocidad.
     def AsignarPuerto(self, puerto): # Asigna y abre el puerto
         self.address.port = puerto 
         self.puerto = puerto
@@ -83,15 +92,15 @@ class SMC():
         valor = -1
         estadosReady = ['32','33','34']
         while valor == -1:
-            self.address.write(b'1TS\r\n')
+            self.address.write(b'1TS\r\n') # Le pregunta el estado al controlador.
             time.sleep(0.1)
             lectura = self.LeerBuffer()
             if 'TS' in lectura:
                 valor = 1
-                if any(x in lectura for x in estadosReady):
+                if any(x in lectura for x in estadosReady): # Si ya estaba prendido le lee la posición y lo deja ahí.
                     self.posicion = self.LeerPosicion()
                     return
-        self.address.write(b'1RS\r\n')
+        self.address.write(b'1RS\r\n') # Si no estaba prendido lo resetea y lo calibra: lo manda a la posición inicial.
         time.sleep(7)
         self.address.write(b'1PW1\r\n')
         time.sleep(2)
@@ -102,14 +111,14 @@ class SMC():
         self.address.write(b'1OR\r\n')
         time.sleep(2)
         valor = -1
-        while valor == -1:
-            self.address.write(b'1TS\r\n')
+        while valor == -1: # Esto es un loop para que el programa no siga corriendo hasta que la calibración no termine.
+            self.address.write(b'1TS\r\n') 
             time.sleep(0.1)
             lectura = self.LeerBuffer()
             if 'TS' in lectura:
                 valor = lectura.find('32')
-        self.posicion = 0 # Podría leerle la posición, pero siempre queda en el cero luego del Homing.
-    def LeerVelocidad(self):
+        self.posicion = 0 # Podría leerle la posición, pero siempre queda en el cero luego de la calibración.
+    def LeerVelocidad(self): # Devuelve una velocidad en mm por segundo.
         velocidad = 0
         valor = -1
         while valor == -1:
@@ -121,34 +130,41 @@ class SMC():
                 a = a.split('\r')[0]
                 velocidad = float(a)
         return velocidad
-    def CambiarVelocidad(self, velocidad):
+    def CambiarVelocidad(self, velocidad): # En mm por segundo también.
         comando = '1VA?' + str(velocidad) + '\r\n'
         self.address.write(comando.encode())
         time.sleep(0.1)
         self.velocidadMmPorSegundo = float(velocidad)
-    def LeerPosicion(self):
+    def LeerPosicion(self): # Devuelve la posición en mm.
         valor = -1
         while valor == -1:
-            self.address.write(b'1TH\r\n')
+            self.address.write(b'1TH\r\n') # Le pregunta la posición absoluta (teórica, del controlador)
             time.sleep(0.1)
             lectura = self.LeerBuffer()
             if 'TH' in lectura:
                 a = lectura.split('\r')[0]
                 b = a.split('TH')[len(a.split('TH'))-1]
                 return abs(round(float(b),5))
-    def Mover(self, PosicionSMC_mm): # Mueve a la posición especificada.
-        comando = '1PA' + str(PosicionSMC_mm) + '\r\n'
+    def Mover(self, PosicionSMC_mm): # Mueve a la posición especificada. OBS IMPORTANTE: Si se quiere dar vuelta 
+        # la dirección de barrido de la plataforma, se debe cambiar la PosiciónSMC_mm por 25-PosicionSMC_mm, 
+        # SOLAMENTE en la línea del .write.
+        # Es como cambiar el punto cero de la plataforma de 0 a 25. Entonces si se ingresa la posición 1mm en el 
+        # programa, voy a tener una posición de 24mm en la paltaforma. Si se hace un barrido desde 1mm a 5mm voy 
+        # a barrer desde 24mm hasta 20mm. Toda la graficación y grabado de CSV's queda IGUAL. Hay que ver que esa 
+        # resta 25-PosicionSMC_mm no induzca errores de redondeo.
+        comando = '1PA' + str(25-PosicionSMC_mm) + '\r\n'
         self.address.write(comando.encode())
         PosicionSMC_mm = round(PosicionSMC_mm, 6)
         self.posicion = PosicionSMC_mm
     def CalcularTiempoSleep(self, PosicionSMC_mm): # El código deja de ejecutarse hasta que el SMC se mueva.
+                                                   # Hay un tiempo agregado que podría reducirse/quitarse.
         TiempoSMC = 0
         if (PosicionSMC_mm-self.posicion) == 0:
             time.sleep(0.1)
         else:
             TiempoSMC = abs(PosicionSMC_mm-self.posicion)/self.velocidadMmPorSegundo + tiempoAgregadoPlataforma
         return TiempoSMC
-    def LeerBuffer(self):
+    def LeerBuffer(self): # Lee el puerto serie.
         lectura = 'a'
         lecturaTotal = ''
         while lectura != '\n' and lectura != '': 
@@ -158,7 +174,7 @@ class SMC():
             lectura = lectura.decode('windows-1252')
             lecturaTotal = lecturaTotal + lectura
         return lecturaTotal      
-    def Identificar(self): 
+    def Identificar(self): # Se fija de que reconozca el controlador (el tornillo de la plataforma, en particular).
         b = False
         i=0
         while i < 4:
@@ -171,7 +187,7 @@ class SMC():
                     break
             i += 1
         return b
-    def Calibrar(self):
+    def Calibrar(self): # Lo resetea y lo manda a la posición cero.
         self.address.write(b'1RS\r\n')
         time.sleep(7)
         self.address.write(b'1PW1\r\n')
@@ -187,6 +203,12 @@ class SMC():
     
 #%%%
         
+# El SMS LambdaScan es el controlador del Monocromador (o espectrómetro). Está conectado a la PC via un cable USB
+# que simula un puerto serie RS-232. Al controlador le falta un circuito integrado que se quemó (el del motor 1).
+# Hablar con Maxi si ocurre alguna falla eléctrica, pero viene funcionando joya.
+# Hay dos redes de difracción, una de 1200 ranuras por mm y otra creemos de 600 ranuras por mm. La calibración fue 
+# hecha a "mano", sin una alineación muy fina, así que puede estar pifiada hasta por 5 nm masomenos. 
+    
 class SMS():
     def __init__(self):
         self.address = serial.Serial( # Crea el puerto, no lo abre. Los valores están en el manual.
@@ -199,7 +221,10 @@ class SMS():
                 xonxoff = False,
                 rtscts = False,
                 dsrdtr = True)
-        self.multiplicador = 32 # Da cuenta de qué red está usándose.
+        self.multiplicador = int(1/resolucionSMS_nm*10) # El multiplicador es la inversa de la resolución.
+                                                        # Como la resolución real es 0.03125 entonces el multiplicador
+                                                        # debe ser 32. Pero como la resolución que funciona es
+                                                        # 0.3125, se multiplica por 10 para obtener el valor correcto.
         self.resolucion = resolucionSMS_nm # La resolución es la inversa del multiplicador.
         self.posicion = 0
         self.velocidadNmPorSegundo = velocidadSMS_nmPorSegundo
@@ -210,15 +235,17 @@ class SMS():
     def CerrarPuerto(self): 
         self.address.close()
     def Configurar(self): 
-        comando = '#SLM\r3\r'
+        comando = '#SLM\r3\r' # Setea el control de mano del SMS para que muestre el motor 3.
         self.address.write(comando.encode())
         time.sleep(1)
         self.posicion = self.LeerPosicion()
 #        self.velocidadNmPorSegundo = self.LeerVelocidad()
 #        self.multiplicador = self.LeerMultiplicador()
-        if self.posicion < 400:
+        if self.posicion < 400: # Mueve automáticamente a 400nm al monocromador si está por debajo. Quitar si no se quiere.
             self.Mover(400)   
-    def LeerVelocidad(self): 
+    def LeerVelocidad(self): # La velocidad que devuelve no es una velocidad realmente, es un número entero positivo
+                             # que define la cantidad de "time counts" que el motor espera entre step y step.
+                             # Es decir, a mayor número, menor velocidad.
         valor = -1
         while valor == -1:
             self.address.write(b'#RD?\r3\r')
@@ -230,12 +257,13 @@ class SMS():
         a = a.split('!!')[0]
         velocidad = float(a)
         return velocidad        
-    def CambiarVelocidad(self, velocidad):
-        comando = '#RMO\r3\r' + str(velocidad) + '\r'
+    def CambiarVelocidad(self, velocidad): # Idem LeerVelocidad().
+        comando = '#SMO\r3\r' + str(velocidad) + '\r'
         self.address.write(comando.encode())
         time.sleep(1)
         self.velocidadNmPorSegundo = float(velocidad)
-    def LeerPosicion(self):
+    def LeerPosicion(self): # Tanto el LeerPosicion y Mover están en nm y el controlador se encarga de ver qué 
+                            # multiplicador está asignado y hacer los cálculos para mover la red de difracción.
         valor = -1
         while valor == -1:
             self.address.write(b'#CL?\r3\r')
@@ -251,7 +279,7 @@ class SMS():
         comando = '#MCL\r3\r' + str(LongitudDeOnda_nm) + '\r'
         self.address.write(comando.encode())
         self.posicion = LongitudDeOnda_nm
-    def CalcularTiempoSleep(self, LongitudDeOnda_nm):
+    def CalcularTiempoSleep(self, LongitudDeOnda_nm): # Hay un tiempo agregado que se puede reducir/quitar, con cuidado.
         TiempoMonocromador = 0
         if (LongitudDeOnda_nm-self.posicion) == 0:
             time.sleep(1)
@@ -282,11 +310,11 @@ class SMS():
                     break
             i += 1
         return b
-    def Calibrar(self):
+    def Calibrar(self): # Lo manda a la posición de calibración, es la que tiene cuando se enciende y se toca ENT.
         self.address.write(b'#CAL\r3\r')
         self.posicion = offsetSMS
         return
-    def CambiarRed(self, grating):
+    def CambiarRed(self, grating): # Hay que probar el código.
         if grating == '1200' and self.multiplicador == 32:
             return
         if grating == '600' and self.multiplicador == 16:
@@ -300,7 +328,7 @@ class SMS():
             self.resolucion = 0.3125
             self.multiplicador = 32
         self.Calibrar()
-    def LeerMultiplicador(self):
+    def LeerMultiplicador(self): # Hay que probar el código.
         valor = -1
         while valor == -1:
             self.address.write(b'#RC?\r3\r')
@@ -313,9 +341,9 @@ class SMS():
         multiplicador = float(a)
         return multiplicador
         
-                
-    
 #%%%
+    
+# El LockIn está conectado a la PC via un cable USB que simula un GPIB.
     
 class LockIn():
     def __init__(self):
@@ -351,7 +379,7 @@ class LockIn():
         self.address.write("LOCL0") #Setea control en Local=0, Remote=1, Remote Lockout=2
         time.sleep(0.2)
         self.SetearNumeroDeConstantesDeIntegracion(1)
-    def ConstanteDeIntegracion(self): # Le pregunta la constante de integración al Lock In
+    def ConstanteDeIntegracion(self): # Le pregunta la constante de integración al Lock In.
         constanteDeIntegracion = 0
         a = self.address.query("OFLT?")
         a = a.replace('\n','')
@@ -365,7 +393,7 @@ class LockIn():
         # es un número por el que se multiplica la constate de tiempo del lock in para tener mayor libertad.
         self.numeroDeConstantesDeTiempo = numeroDeConstantesDeTiempo
         self.TiempoDeIntegracionTotal = self.CalcularTiempoDeIntegracion()
-    def CalcularTiempoDeIntegracion(self):
+    def CalcularTiempoDeIntegracion(self): 
         constanteDeIntegracion = self.ConstanteDeIntegracion()
         TiempoDeIntegracionTotal = constanteDeIntegracion*self.numeroDeConstantesDeTiempo
         return TiempoDeIntegracionTotal
@@ -375,7 +403,7 @@ class LockIn():
         if 'SR830' in lectura:
             b = True
         return b
-    def Adquirir(self): # Devuelve un string separado en comas con las cantidades
+    def Adquirir(self): # Devuelve un string separado en comas con las cantidades.
         a = self.address.query("SNAP?1,2{,3,4,5,9}") # X,Y,R,THETA,AUX1,FREC
         a = a.replace('\n','')
         return a
@@ -383,8 +411,12 @@ class LockIn():
 
 #%%%
 
-class Experimento(): # Esta clase hace las iteraciones para los barridos. También desarma el string del Lock In 
-    # para devolver un vector.
+# Esta clase hace las iteraciones para los barridos: manda las órdenes para mover la plataforma, la red y adquiere
+# del LockIn. También desarma el string del Lock In para devolver un vector de strings.
+# Posee adentro una instancia de la clase SMC, una de SMS, una de LockIn y una de Grafico. Es el corazón de la medi-
+# ción. Se encarga de llamar a la clase Grafico e ir armando los gráficos, como también ir grabando el CSV.
+
+class Experimento(): 
     def __init__(self):
         self.smc = SMC()
         self.mono = SMS()
@@ -395,20 +427,27 @@ class Experimento(): # Esta clase hace las iteraciones para los barridos. Tambi�
                             VectorPosicionFinalSMC_mm,
                             VectorPasoSMC_mm):
         self.nombreArchivo = nombreArchivo
-        global do_run
-        for i in range(0,len(VectorPosicionInicialSMC_mm)):
+        global do_run # Esta variable global se vuelve False cuando se clickea el botón Cancelar Medición. Hasta 
+                      # donde logro ver no genera ningún problema cancelar la medición de esta forma. Todos los 
+                      # aparatos y objetos quedan con las variables en los estados que deben poseer. Esto es así
+                      # porque las posiciones se modifican solamente cuando se mueven los aparatos, o en las cali-
+                      # braciones. (En general intenté que todas las variables de los objetos se cambien cuando
+                      # tienen que cambiar y no en otro momento. Eso reduce los posibles errores.)
+        for i in range(0,len(VectorPosicionInicialSMC_mm)): # Este loop es sobre la cantidad de "Secciones": 1 a 5.
             if do_run == False:
                 return
             tiempoDeSleep = self.smc.CalcularTiempoSleep(VectorPosicionInicialSMC_mm[i])
             self.smc.Mover(VectorPosicionInicialSMC_mm[i])
             time.sleep(tiempoDeSleep)
-            if i==0:
+            if i==0: # Esto lo hace siempre. Es medir la primera posición de todo el barrido.
                 self.AdquirirGraficarYGrabarCSV()
-            if i>0 and VectorPosicionInicialSMC_mm[i] != VectorPosicionFinalSMC_mm[i-1]:
+            if i>0 and VectorPosicionInicialSMC_mm[i] != VectorPosicionFinalSMC_mm[i-1]: # Esto es para evitar que
+                # se mida dos veces si uno superpone los extremos de las secciones.
                 self.AdquirirGraficarYGrabarCSV()
             numeroDePasos = abs(int(round((VectorPosicionFinalSMC_mm[i]-VectorPosicionInicialSMC_mm[i])/VectorPasoSMC_mm[i], 6)))
-            print(numeroDePasos)
-            for j in range(0,numeroDePasos):
+            print(numeroDePasos) # Es el número de pasos en cada Sección. El print es para ver que no haya errores
+            # de redondeo.
+            for j in range(0,numeroDePasos): 
                 if do_run == False:
                     return
                 tiempoDeSleep = self.smc.CalcularTiempoSleep(VectorPasoSMC_mm[i]+self.smc.posicion)
@@ -422,13 +461,13 @@ class Experimento(): # Esta clase hace las iteraciones para los barridos. Tambi�
                             VectorPasoMono_nm):
         global do_run
         self.nombreArchivo = nombreArchivo
-        for i in range(0,len(VectorLongitudDeOndaInicial_nm)):
+        for i in range(0,len(VectorLongitudDeOndaInicial_nm)): # Loop sobre la cantidad de "Secciones".
             if do_run == False:
                 return
             tiempoDeSleep = self.mono.CalcularTiempoSleep(VectorLongitudDeOndaInicial_nm[i])
             self.mono.Mover(VectorLongitudDeOndaInicial_nm[i])
             time.sleep(tiempoDeSleep)
-            if i==0:
+            if i==0: # Idem MediciónALambdaFija
                 self.AdquirirGraficarYGrabarCSV()
             if i>0 and VectorLongitudDeOndaInicial_nm[i] != VectorLongitudDeOndaFinal_nm[i-1]:
                 self.AdquirirGraficarYGrabarCSV()
@@ -449,17 +488,17 @@ class Experimento(): # Esta clase hace las iteraciones para los barridos. Tambi�
                          VectorLongitudDeOndaFinal_nm,
                          VectorPasoMono_nm):
         self.nombreArchivo = nombreArchivo
-        for i in range(0,len(VectorLongitudDeOndaInicial_nm)):
+        for i in range(0,len(VectorLongitudDeOndaInicial_nm)): # Loop sobre la cantidad de "Secciones" de lambdas.
             if do_run == False:
                 return
             tiempoDeSleep = self.mono.CalcularTiempoSleep(VectorLongitudDeOndaInicial_nm[i])
             self.mono.Mover(VectorLongitudDeOndaInicial_nm[i])
             time.sleep(tiempoDeSleep)
             numeroDePasosMono = abs(int(round((VectorLongitudDeOndaFinal_nm[i]-VectorLongitudDeOndaInicial_nm[i])/VectorPasoMono_nm[i], 6)))
-            for j in range(0,numeroDePasosMono+1):
+            for j in range(0,numeroDePasosMono+1): # Hace el barrido de cada sección del monocromador.
                 if do_run == False:
                     return
-                for k in range(0,len(VectorPosicionInicialSMC_mm)):
+                for k in range(0,len(VectorPosicionInicialSMC_mm)): # Loop sobre la cantidad de "Secciones" de la plataforma.
                     if do_run == False:
                         return
                     tiempoDeSleep = self.smc.CalcularTiempoSleep(VectorPosicionInicialSMC_mm[k])
@@ -470,14 +509,14 @@ class Experimento(): # Esta clase hace las iteraciones para los barridos. Tambi�
                     if k>0 and VectorPosicionInicialSMC_mm[k] != VectorPosicionFinalSMC_mm[k-1]:
                         self.AdquirirGraficarYGrabarCSV()
                     numeroDePasosSMC = abs(int(round((VectorPosicionFinalSMC_mm[k]-VectorPosicionInicialSMC_mm[k])/VectorPasoSMC_mm[k], 6)))
-                    for l in range(0,numeroDePasosSMC):
+                    for l in range(0,numeroDePasosSMC): # Hace el barrido de cada sección de la plataforma.
                         if do_run == False:
                             return
                         tiempoDeSleep = self.smc.CalcularTiempoSleep(VectorPasoSMC_mm[k]+self.smc.posicion)
                         self.smc.Mover(VectorPasoSMC_mm[k]+self.smc.posicion)
                         time.sleep(tiempoDeSleep)
                         self.AdquirirGraficarYGrabarCSV()
-                if j<numeroDePasosMono:
+                if j<numeroDePasosMono: # Mueve el monocromador para seguir barriendo con la plataforma.
                     tiempoDeSleep = self.mono.CalcularTiempoSleep(VectorPasoMono_nm[i] + self.mono.posicion)
                     self.mono.Mover(VectorPasoMono_nm[i] + self.mono.posicion)
                     time.sleep(tiempoDeSleep)
@@ -486,11 +525,12 @@ class Experimento(): # Esta clase hace las iteraciones para los barridos. Tambi�
         vectorDeStringsDeDatos = self.ArmarVectorDeDatos()
         self.grafico.Graficar(vectorDeStringsDeDatos,self.smc.posicion,self.mono.posicion)
         self.GrabarCSV(vectorDeStringsDeDatos)
-    def GrabarCSV(self, vectorDeStringsDeDatos):
+    def GrabarCSV(self, vectorDeStringsDeDatos): # Crea un archivo y va appendeando filas.
         with open('CSVs/' + self.nombreArchivo, 'a') as csvfile:
             filewriter = csv.writer(csvfile, delimiter=',')
             filewriter.writerow(vectorDeStringsDeDatos)
-    def ArmarVectorDeDatos(self):
+    def ArmarVectorDeDatos(self): # Transforma el string que devuelve el LockIn en un vector de strings y le agrega
+        # la posición del smc y del mono.
         a = self.lockin.Adquirir()
         a = a + ',' + str(self.smc.posicion) + ',' + str(self.mono.posicion)
         b = a.split(',')
@@ -503,10 +543,8 @@ class Experimento(): # Esta clase hace las iteraciones para los barridos. Tambi�
         sumaDeAuxs = 0
         numeroTotalDeAuxsAPromediar = segundosAPromediar*numeroDeAuxsPorSegundo
         tiempoADormirEnCadaMedicion = 1/numeroDeAuxsPorSegundo
-        print(numeroTotalDeAuxsAPromediar)
         for i in range(0,numeroTotalDeAuxsAPromediar):
             medicion = self.ArmarVectorDeDatos()
-            print(i)
             time.sleep(tiempoADormirEnCadaMedicion)
             aux = float(medicion[4])
             sumaDeAuxs = sumaDeAuxs + aux
@@ -515,36 +553,51 @@ class Experimento(): # Esta clase hace las iteraciones para los barridos. Tambi�
 
 #%%%        
 
-class Grafico(): # Es la clase que maneja la figura que contiene los gráficos.
+# Esta clase va armando los vectores de los ejes de los gráficos (y matrices en el plot de color). La idea es que
+# en cada nueva medición (en cada barrido nuevo) esta clase se restartea al llamar a Configurar. Por eso cada vez
+# que finaliza una medición se guarda el gráfico generado. Desde esta clase se plotea y se actualiza la ventana del
+# tkinter.
+# Posee una única figura que contiene adentro desde 1 hasta 6 gráficos que se van actualizando. Los gráficos se van
+# actualizando de forma dinámica: para el colorplot los ejes de los gráficos están completamente determinados al 
+# crearlos. Para los otros gráficos (los que no son colorplots) los ejes se van agrandando a medida que se actualizan.
+
+class Grafico(): 
     def __init__(self):
         self.fig = plt.figure(figsize=(18,12), linewidth=10, edgecolor="#04253a")
     def Configurar(self, valoresAGraficar, promedioAux, promedioAuxBool, TipoDeMedicion, ejeX, VectorPosicionInicialSMC_mm = 0, VectorPosicionFinalSMC_mm = 0, VectorPasoSMC_mm = 0, VectorLongitudDeOndaInicial_nm = 0, VectorLongitudDeOndaFinal_nm = 0, VectorPasoMono_nm = 0, longitudDeOndaFija_nm = 0, posicionFijaSMC_mm = 0):
-        self.fig.clear()
+        self.fig.clear() # Borra la figura.
         self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-        self.TipoDeMedicion = TipoDeMedicion
-        self.ValoresAGraficar = valoresAGraficar
+        self.fig.canvas.flush_events() # Actualiza la figura en la interfaz gráfica.
+        self.TipoDeMedicion = TipoDeMedicion # Guarda el tipo de medición a realizar: 0, 1 o 2. (posicion, lambda o completa)
+        self.ValoresAGraficar = valoresAGraficar # Es un vector de dimensión 6 con los booleanos de las checkbox
+                                                 # que dicen qué cantidades se van a graficar.
         self.cantidadDeValoresAGraficar = valoresAGraficar.count(1)
-        self.posicionFijaSMC_mm = posicionFijaSMC_mm
-        self.longitudDeOndaFija_nm = longitudDeOndaFija_nm
-        self.promedioAux = promedioAux
-        self.promedioAuxBool = promedioAuxBool
-        self.ejeX = ejeX
-        self.x = list()
-        self.z = list()
-        self.VectorX_mm = 0
-        self.VectorX_ps = 0
-        self.VectorY = 0
-        self.listaDeMatrices = list()
-        self.listaDeGraficos = list()
-        self.listaDePlots = list()
-        self.listaDeColorbars = list()
-        self.listaDeEjesY = list()  
-        self.diccionarioDeValoresAGraficar = dict()
+        self.longitudDeOndaFija_nm = longitudDeOndaFija_nm # Para el tipo de medición 0
+        self.posicionFijaSMC_mm = posicionFijaSMC_mm # Para el tipo de medición 1
+        self.promedioAux = promedioAux 
+        self.promedioAuxBool = promedioAuxBool # Es un booleano que tiene el valor de la checkbox de Promedio Aux.
+        self.ejeX = ejeX # OJO: es un string: "Tiempo" o "Distancia" dependiendo qué se eligió en la interfaz.
+        self.x = list() # Es el eje X para las mediciones tipo 0 o 1.
+        self.listaDeEjesY = list() # Son los ejes Y de los gráficos. La lista poseerá tantos ejes Y como checkboxs
+                                   # se hayan tildado.
+        self.VectorX_mm = 0 # Es el eje X en mm para el colorplot. 
+        self.VectorX_ps = 0 # Es el eje X en ps para el colorplot.
+        self.VectorY = 0 # Es el eje Y en longitudes de onda para el colorplot.
+        self.listaDeMatrices = list() # Esta lista poseerá adentro tantas matrices como valores a graficar se tildaron
+                                      # en las checkbox. Cada matriz tantas filas y columnas como posiciones de la 
+                                      # plataforma y del monocromador (no sé si respectivamente). En cada lugar guarda
+                                      # el valor obtenido del lock in. Es para los colorplots!
+        self.listaDeGraficos = list() # Una lista que poseerá tantos gráficos (los subplots en el código), como 
+                                      # checkboxs se hayan tildado. Estos se usan para los tres tipos de mediciones.
+        self.listaDeContours = list() # Se necesita para los colorplots.
+        self.listaDeColorbars = list() # Idem.
+
+        self.diccionarioDeValoresAGraficar = dict() 
+        
         if TipoDeMedicion == 0 or TipoDeMedicion == 1:
-            for i in range(0, self.cantidadDeValoresAGraficar):
+            for i in range(0, self.cantidadDeValoresAGraficar): 
                 self.listaDeEjesY.append(list())
-        if TipoDeMedicion == 2:
+        if TipoDeMedicion == 2: # Crea los vectores X e Y y las matrices de los colorplots.
             numeroDePasos = 0
             self.VectorX_mm = np.array(VectorPosicionInicialSMC_mm[0])
             for i in range(0,len(VectorPosicionInicialSMC_mm)):
@@ -566,7 +619,7 @@ class Grafico(): # Es la clase que maneja la figura que contiene los gráficos.
             for i in range(0, self.cantidadDeValoresAGraficar):
                 self.listaDeMatrices.append(np.zeros((len(self.VectorY),len(self.VectorX_mm))))
         
-        
+        # Se llena el diccionario.
         if valoresAGraficar[0] == 1:
             self.diccionarioDeValoresAGraficar['X'] = 0
         if valoresAGraficar[1] == 1:
@@ -582,6 +635,9 @@ class Grafico(): # Es la clase que maneja la figura que contiene los gráficos.
         self.listaDeValoresAGraficar = list(self.diccionarioDeValoresAGraficar.values())
         self.listaDeKeysDelDiccionario = list(self.diccionarioDeValoresAGraficar.keys())
         
+        # Acá se agregan los gráficos a la única figura que hay.
+        # Creo que no es necesario poner esto de una forma algorítmica.
+        # Notar que los gráficos que están en la listaDeGraficos no están vinculados con los ejes todavía.
         if self.cantidadDeValoresAGraficar == 1:
             self.listaDeGraficos.append(self.fig.add_subplot(111))
         if self.cantidadDeValoresAGraficar == 2:
@@ -611,7 +667,7 @@ class Grafico(): # Es la clase que maneja la figura que contiene los gráficos.
             self.listaDeGraficos.append(self.fig.add_subplot(236))
         self.CrearGrafico(TipoDeMedicion)
         
-    def CrearGrafico(self, TipoDeMedicion):
+    def CrearGrafico(self, TipoDeMedicion): # Este método le pone los ejes y títulos a los gráficos.
         string = ' | Promedio Aux = ' + str(self.promedioAux)
         if TipoDeMedicion == 0:
             for i in range(0,self.cantidadDeValoresAGraficar):
@@ -642,17 +698,22 @@ class Grafico(): # Es la clase que maneja la figura que contiene los gráficos.
                     self.listaDeGraficos[i].set_title(self.listaDeKeysDelDiccionario[i])                    
                 if self.ejeX == 'Distancia':
                     self.listaDeGraficos[i].set_xlabel('Retardo (mm)')
-                    self.listaDePlots.append(self.listaDeGraficos[i].contourf(self.VectorX_mm, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy'))
+                    self.listaDeContours.append(self.listaDeGraficos[i].contourf(self.VectorX_mm, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy'))
                 else:
                     self.listaDeGraficos[i].set_xlabel('Retardo (ps)')
-                    self.listaDePlots.append(self.listaDeGraficos[i].contourf(self.VectorX_ps, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy'))
+                    # Acá se crean ya los contourplots de color.
+                    self.listaDeContours.append(self.listaDeGraficos[i].contourf(self.VectorX_ps, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy'))
                 self.listaDeGraficos[i].set_ylabel('Longitud de onda (nm)') 
-
+                
+    # Los trés métodos que siguen se llaman cada vez que se hace una obtención de datos del Lock In en los barridos.
     def GraficarALambdaFija(self, VectorAGraficar, posicionSMC, posicionMono):
         if self.ejeX == 'Distancia':
             self.x.append(posicionSMC)
         else:
             self.x.append((posicionSMC)*(2/3)*10) # en picosegundos  
+        # Este loop itera sobre cada gráfico de la figura. Se diferencia el 4 y el 5 porque son los X/Aux y R/Aux
+        # que hay que dividirlos por Aux y por lo tanto darles un tratamiento especial debido a la posibilidad
+        # de que esté promediado el Aux.
         for i in range(0, self.cantidadDeValoresAGraficar):
             if self.listaDeValoresAGraficar[i] != 4 and self.listaDeValoresAGraficar[i] != 5:
                 self.listaDeEjesY[i].append(float(VectorAGraficar[self.listaDeValoresAGraficar[i]]))
@@ -668,9 +729,7 @@ class Grafico(): # Es la clase que maneja la figura que contiene los gráficos.
                     else:
                         self.listaDeEjesY[i].append(float(VectorAGraficar[2])/float(VectorAGraficar[4]))
             self.listaDeGraficos[i].plot(self.x, self.listaDeEjesY[i], 'r-')
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()   
-        plt.tight_layout()
+        self.ActualizarFiguraEnInterfaz()
     def GraficarAPosicionFija(self, VectorAGraficar, posicionSMC, posicionMono):
         self.x.append(posicionMono)
         for i in range(0,self.cantidadDeValoresAGraficar):
@@ -688,13 +747,12 @@ class Grafico(): # Es la clase que maneja la figura que contiene los gráficos.
                     else:
                         self.listaDeEjesY[i].append(float(VectorAGraficar[2])/float(VectorAGraficar[4]))
             self.listaDeGraficos[i].plot(self.x, self.listaDeEjesY[i], 'b-')
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-        plt.tight_layout()
+        self.ActualizarFiguraEnInterfaz()
     def GraficarCompletamente(self, VectorAGraficar, posicionSMC, posicionMono):
-        posicionX = np.where(self.VectorX_mm == posicionSMC)
-        posicionY = np.where(self.VectorY == posicionMono)
-        if hasattr(self, 'listaDeColorbars'):
+        posicionX = np.where(self.VectorX_mm == posicionSMC) # Este método recibe las posiciones actuales del SMC y
+        posicionY = np.where(self.VectorY == posicionMono)   # del monocromador. Estas dos líneas buscan los índices
+                                                             # de las matrices en los que se encuentran esos valores.
+        if hasattr(self, 'listaDeColorbars'): # Vacía la listaDeColorbars.
             for i in range(0,len(self.listaDeColorbars)):
                 self.listaDeColorbars[i].remove()
         self.listaDeColorbars = list()
@@ -713,18 +771,21 @@ class Grafico(): # Es la clase que maneja la figura que contiene los gráficos.
                     else:
                         self.listaDeMatrices[i][posicionY[0][0],posicionX[0][0]] = float(VectorAGraficar[2])/float(VectorAGraficar[4])
             if self.ejeX == 'Distancia':
-                self.listaDePlots[i] = self.listaDeGraficos[i].contourf(self.VectorX_mm, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy')
+                self.listaDeContours[i] = self.listaDeGraficos[i].contourf(self.VectorX_mm, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy')
             else:
-                self.listaDePlots[i] = self.listaDeGraficos[i].contourf(self.VectorX_ps, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy')
+                self.listaDeContours[i] = self.listaDeGraficos[i].contourf(self.VectorX_ps, self.VectorY, self.listaDeMatrices[i], 20, cmap='RdGy')
+            # Estas tres líneas que siguen son para las colorbars.
             divider = make_axes_locatable(self.listaDeGraficos[i])
             cax = divider.append_axes("right", size="5%", pad=0.05)
-            self.listaDeColorbars.append(self.fig.colorbar(self.listaDePlots[i],cax=cax))
+            self.listaDeColorbars.append(self.fig.colorbar(self.listaDeContours[i],cax=cax))
+        self.ActualizarFiguraEnInterfaz()
+    def ActualizarFiguraEnInterfaz(self):
         self.fig.canvas.draw()
-        self.fig.canvas.flush_events() 
-        plt.tight_layout()
+        self.fig.canvas.flush_events()   
+        plt.tight_layout() # Reordena los gráficos para que no se superpongan.
     def GuardarGrafico(self, nombreArchivo):
         self.fig.savefig('Plots/' + nombreArchivo, dpi=200)
-    def Graficar(self, VectorAGraficar, posicionSMC, posicionMono):
+    def Graficar(self, VectorAGraficar, posicionSMC, posicionMono): # Elije a qué método llamar.
         if self.TipoDeMedicion == 0:
             self.GraficarALambdaFija(VectorAGraficar, posicionSMC, posicionMono)
         if self.TipoDeMedicion == 1:
@@ -733,11 +794,18 @@ class Grafico(): # Es la clase que maneja la figura que contiene los gráficos.
             self.GraficarCompletamente(VectorAGraficar, posicionSMC, posicionMono)
 
 #%%%%
+            
 # Esta sección, con sus clases, maneja toda la interfaz gráfica. Hay 4 ventanas en total:
 # Configuración: es la inicial
-# Ventana principal (es Programa). Está separada en muchos paneles para simplificar su ubicación en la interfaz.
+# Ventana principal (es Programa en el código). Está separada en muchos paneles para simplificar su ubicación 
+# en la interfaz.
 # Advertencia: es la que aparece para dar aviso o ayudas.
 # Medición: es la que aparece al iniciar los barridos.
+# La clase Programa además posee tres funciones que calculan los tiempos completos de las mediciones, para mostrarlo
+# en la ventana Medición. Esto podría estar en Experimento. Posee también una función Salir que sigue un pequeño
+# protocolo para cerrar el programa. 
+# Al final de todo el código están las pocas líneas que corren el programa. Ver eso.
+            
 class Advertencia():
     def __init__(self, titulo, texto):
         advertencia = tk.Tk()
@@ -1760,6 +1828,18 @@ class Programa():
         if self.panelPromedioAux.ObtenerPromedioAuxBool():
             TiempoTotal = TiempoTotal + self.panelPromedioAux.ObtenerSegundosAPromediar()
         return TiempoTotal
+    
+    
+# Todo el código que está por encima de esta línea son clases. No hay instancias creadas de las clases, solo 
+# sus definiciones. El programa se ejecuta cuando se llama a la línea "programa = Programa()" de aquí abajo.
+# Ahí se crea un objeto de la clase Programa que posee en su interior a un objeto de la clase Configuración, un 
+# objeto de la clase Experimento y un objeto de la clase Grafico. El objeto de la clase Medicion se crea en cada
+# medición y lo mismo pasa con las Advertencias: se crean en cada Advertencia. Dentro del objeto experimento 
+# que se encuentra dentro del objeto programa, hay un objeto de la clase SMC, otro de la clase SMS y otro de la 
+# clase LockIn. Además el objeto experimento posee un puntero de referencia al mismo objeto grafico creado en el 
+# objeto programa.
+
+# Este protocolo no sé si tiene sentido...
 try:
     programa.experimento.smc.CerrarPuerto()
     programa.experimento.mono.CerrarPuerto()
