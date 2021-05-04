@@ -879,10 +879,17 @@ class Medicion():
         self.midiendo = tk.Tk()
         self.midiendo.title('Midiendo')
         ws, hs = self.midiendo.winfo_screenwidth(), self.midiendo.winfo_screenheight()
-        self.midiendo.geometry('%dx%d+%d+%d' % (500, 120, ws/3 , hs/70))
-        horas, minutos, segundos, horaFinalizacion, minutoFinalizacion, segundoFinalizacion = self.CalcularHoraDeFinalizacion(tiempoDeMedicion)
+        self.midiendo.geometry('%dx%d+%d+%d' % (520, 220, ws/3 , hs/70))
+        cantidadDeMedicionesARealizar = int(programa.panelCantidadDeMedicionesARealizar.ObtenerCantidadDeMedicionesARealizar())
+        horas, minutos, segundos, horaFinalizacion, minutoFinalizacion, segundoFinalizacion = self.CalcularDuracionYHoraDeFinalizacion(tiempoDeMedicion)
+        horasVM, minutosVM, segundosVM, horaFinalizacionVM, minutoFinalizacionVM, segundoFinalizacionVM = self.CalcularDuracionYHoraDeFinalizacionVariasMediciones(tiempoDeMedicion, cantidadDeMedicionesARealizar)
+
         # Lo de abajo es un label que muestra lo que va a tardan la medición y la hora de finalización.
-        self.labelEstado = tk.Label(self.midiendo, text="Realizando la medicion. Tiempo estimado: " + str(horas) + ' h ' + str(minutos) + ' m ' + str(segundos) + ' s. \n Hora estimada de finalización: ' + str(horaFinalizacion) + ':' + str(minutoFinalizacion) + ':' + str(segundoFinalizacion), font=(fuente,12))
+        if cantidadDeMedicionesARealizar == 1:
+            self.labelEstado = tk.Label(self.midiendo, text="Realizando la medicion. Tiempo estimado: " + str(horas) + ' h ' + str(minutos) + ' m ' + str(segundos) + ' s. \n Hora estimada de finalización: ' + str(horaFinalizacion) + ':' + str(minutoFinalizacion) + ':' + str(segundoFinalizacion), font=(fuente,12))    
+        else:
+            self.labelEstado = tk.Label(self.midiendo, text="Realizando las mediciones. Tiempo estimado por medición: " + str(horas) + ' h ' + str(minutos) + ' m ' + str(segundos) + ' s. \n Tiempo estimado total: ' + str(horasVM) + ' h ' + str(minutosVM) + ' m ' + str(segundosVM) + ' s. \n Hora estimada de finalización: ' + str(horaFinalizacionVM) + ':' + str(minutoFinalizacionVM) + ':' + str(segundoFinalizacionVM), font=(fuente,12))    
+            
         self.labelEstado.place(x=0, y=0)
         def Cancelar(): # Cancelar medición. Espera un segundo sumado al tiempo de integración del LockIn y 
                         # luego actualiza las posiciones de los motores.
@@ -893,11 +900,11 @@ class Medicion():
             programa.panelJoggingRedDeDifraccion.Actualizar()
             self.midiendo.destroy()
         botonCancelar = tk.Button(self.midiendo, text = 'Cancelar', command = Cancelar, font=(fuente,12))
-        botonCancelar.place(x=70, y = 60, height=35, width=80)
+        botonCancelar.place(x=70, y = 160, height=35, width=80)
         def Finalizar(): # Es un botón para cerrar la ventana una vez que finalizó completamente la medición.
             self.midiendo.destroy()
         self.botonFinalizar = tk.Button(self.midiendo, text = 'Finalizar', command = Finalizar, font=(fuente,12))
-        self.botonFinalizar.place(x=200, y = 60, height=35, width=80)
+        self.botonFinalizar.place(x=200, y = 160, height=35, width=80)
         self.botonFinalizar["state"]="disabled" # Empieza deshabilitado. Se habilita al terminar la medición.
         def Medir():
             self.midiendo.update() # Para que aparezca la ventana antes de terminar de cargar todo el código.
@@ -907,35 +914,40 @@ class Medicion():
             ejeX = programa.panelEjeX.ObtenerValor()
             valoresAGraficar = programa.panelValoresAGraficar.ObtenerValores() 
             promedioAux = experimento.CalcularPromedioAux(programa.panelPromedioAux.ObtenerSegundosAPromediar())
-            programa.GrabarDataGraficos(ejeX, valoresAGraficar, programa.panelPromedioAux.ObtenerSegundosAPromediar(), programa.panelPromedioAux.ObtenerPromedioAuxBool())
+            # Graba los valores elegidos en un .txt para que ya quede así para la próxima vez que se use el programa.
+            programa.GrabarDataGraficos(ejeX, valoresAGraficar, programa.panelPromedioAux.ObtenerSegundosAPromediar(), programa.panelPromedioAux.ObtenerPromedioAuxBool(), cantidadDeMedicionesARealizar)
             
-            # Los próximos tres if son para generar el gráfico correspondiente a la medición. Configurar
-            # es como resetear el objeto grafico.
-            if tipoDeMedicion == 0:
-                programa.grafico.Configurar(valoresAGraficar, promedioAux, programa.panelPromedioAux.ObtenerPromedioAuxBool(), 0, ejeX, longitudDeOndaFija_nm=experimento.mono.posicion)
-            if tipoDeMedicion == 1:
-                programa.grafico.Configurar(valoresAGraficar, promedioAux, programa.panelPromedioAux.ObtenerPromedioAuxBool(), 1, 0, posicionFijaSMC_mm = experimento.smc.posicion)
-            if tipoDeMedicion == 2:
-                programa.grafico.Configurar(valoresAGraficar, promedioAux, programa.panelPromedioAux.ObtenerPromedioAuxBool(), 2, ejeX, VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)            
-            experimento.grafico = programa.grafico # Se le asigna el mismo gráfico al objeto experimento.
+            for i in range(0,int(cantidadDeMedicionesARealizar)):
+                if int(cantidadDeMedicionesARealizar) > 1:
+                    nombreArchivo = nombreArchivo + '_' + str(i+1) 
+                # Los próximos tres if son para generar el gráfico correspondiente a la medición. Configurar
+                # es como resetear el objeto grafico.
+                if tipoDeMedicion == 0:
+                    programa.grafico.Configurar(valoresAGraficar, promedioAux, programa.panelPromedioAux.ObtenerPromedioAuxBool(), 0, ejeX, longitudDeOndaFija_nm=experimento.mono.posicion)
+                if tipoDeMedicion == 1:
+                    programa.grafico.Configurar(valoresAGraficar, promedioAux, programa.panelPromedioAux.ObtenerPromedioAuxBool(), 1, 0, posicionFijaSMC_mm = experimento.smc.posicion)
+                if tipoDeMedicion == 2:
+                    programa.grafico.Configurar(valoresAGraficar, promedioAux, programa.panelPromedioAux.ObtenerPromedioAuxBool(), 2, ejeX, VectorPosicionInicialSMC_mm, VectorPosicionFinalSMC_mm, VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)            
+                experimento.grafico = programa.grafico # Se le asigna el mismo gráfico al objeto experimento.
            
-            # Estos tres if son para realizar la medición. Dentro de estas líneas ocurren literalmente todas 
-            # las mediciones.
-            if tipoDeMedicion == 0:
-                experimento.MedicionALambdaFija(nombreArchivo,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm)
-            if tipoDeMedicion == 1:
-                experimento.MedicionAPosicionFijaSMC(nombreArchivo,VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
-            if tipoDeMedicion == 2:
-                experimento.MedicionCompleta(nombreArchivo, VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
-            nombreGrafico = nombreArchivo.replace('.csv','')
-            experimento.grafico.GuardarGrafico(nombreGrafico)         
-            self.CambiarEstadoAFinalizado(nombreArchivo) # Habilita el botón Finalizar.  
-            programa.panelJoggingPlataforma.Actualizar()  
-            programa.panelJoggingRedDeDifraccion.Actualizar()
+                # Estos tres if son para realizar la medición. Dentro de estas líneas ocurren literalmente todas 
+                # las mediciones.
+                if tipoDeMedicion == 0:
+                   experimento.MedicionALambdaFija(nombreArchivo,VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm)
+                if tipoDeMedicion == 1:
+                    experimento.MedicionAPosicionFijaSMC(nombreArchivo,VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
+                if tipoDeMedicion == 2:
+                    experimento.MedicionCompleta(nombreArchivo, VectorPosicionInicialSMC_mm,VectorPosicionFinalSMC_mm,VectorPasoSMC_mm, VectorLongitudDeOndaInicial_nm, VectorLongitudDeOndaFinal_nm, VectorPasoMono_nm)
+                nombreGrafico = nombreArchivo.replace('.csv','')
+                experimento.grafico.GuardarGrafico(nombreGrafico)         
+                programa.panelJoggingPlataforma.Actualizar()  
+                programa.panelJoggingRedDeDifraccion.Actualizar()
+                self.CambiarEstadoAFinalizado(nombreArchivo, cantidadDeMedicionesARealizar, i)
+            self.HabilitarBotonFinalizar()
         Medir()
         self.midiendo.mainloop()
 
-    def CalcularHoraDeFinalizacion(tiempoDeMedicion):
+    def CalcularDuracionYHoraDeFinalizacion(self, tiempoDeMedicion):
         segundos = tiempoDeMedicion%60
         totalMinutos = int(tiempoDeMedicion/60)
         minutos = totalMinutos%60
@@ -953,10 +965,18 @@ class Medicion():
             minutoFinalizacion = '0' + str(minutoFinalizacion)
         return horas, minutos, segundos, horaFinalizacion, minutoFinalizacion, segundoFinalizacion
 
-    def CambiarEstadoAFinalizado(self, nombreArchivo):
-        self.botonFinalizar["state"]="normal"
-        self.labelEstado = tk.Label(self.midiendo, text="Medicion Finalizada. El archivo ha sido guardado con el\n nombre: " + nombreArchivo, font=(fuente,12))
-        self.labelEstado.place(x=0, y=0)                       
+    def CalcularDuracionYHoraDeFinalizacionVariasMediciones(self, tiempoDeMedicion, cantidadDeMedicionesARealizar):
+        return self.CalcularDuracionYHoraDeFinalizacion(tiempoDeMedicion*cantidadDeMedicionesARealizar)
+
+    def CambiarEstadoAFinalizado(self, nombreArchivo, cantidadDeMedicionesARealizar, numeroDeMedicion):
+        if cantidadDeMedicionesARealizar == 1:
+            self.labelEstadoFinalizado = tk.Label(self.midiendo, text="Medicion finalizada. El archivo ha sido guardado con el\n nombre: " + nombreArchivo, font=(fuente,12))
+        else:
+            self.labelEstadoFinalizado = tk.Label(self.midiendo, text="Medicion " + str(numeroDeMedicion+1) + " finalizada. El archivo ha sido guardado con el\n nombre: " + nombreArchivo, font=(fuente,12))
+        self.labelEstadoFinalizado.place(x=0, y=80)  
+    
+    def HabilitarBotonFinalizar(self):
+        self.botonFinalizar["state"]="normal"                     
 
 class Configuracion():
     
@@ -976,31 +996,31 @@ class Configuracion():
         raizConfiguracion = tk.Tk()
         raizConfiguracion.title('Pump and Probe Software - Configuración')
         ws, hs = raizConfiguracion.winfo_screenwidth(), raizConfiguracion.winfo_screenheight()
-        raizConfiguracion.geometry('%dx%d+%d+%d' % (1180, 280,ws/5 ,hs/4 ))#'1450x825' Notebook #'1920x1080' Mi compu de escritorio #'' Laboratorio
+        raizConfiguracion.geometry('%dx%d+%d+%d' % (1360, 280,ws/6 ,hs/4 ))#'1450x825' Notebook #'1920x1080' Mi compu de escritorio #'' Laboratorio
         
         puertoSMCDefault, puertoSMSDefault, puertoLockInDefault = self.programa.LeerDataPuertos()
 
         # Esta parte es para armar las líneas que arman el cuadro de Configuracion.
         canvasRecuadros = Canvas(raizConfiguracion, width=ws, height=hs)
-        canvasRecuadros.create_line(10, 35, 1170, 35)
+        canvasRecuadros.create_line(10, 35, 1350, 35)
         canvasRecuadros.create_line(270, 5,270, 180) 
-        canvasRecuadros.create_line(310, 5,310, 180) 
-        canvasRecuadros.create_line(550, 5,550, 180)
-        canvasRecuadros.create_line(670, 5,670, 180)
-        canvasRecuadros.create_line(840, 5,840, 180)
+        canvasRecuadros.create_line(490, 5,490, 180) 
+        canvasRecuadros.create_line(730, 5,730, 180)
+        canvasRecuadros.create_line(850, 5,850, 180)
+        canvasRecuadros.create_line(1020, 5,1020, 180)
         canvasRecuadros.pack(fill=BOTH)
 
         # Son solo textos.
         labelPuertos = tk.Label(raizConfiguracion, text = 'Puertos', font=(fuente,15))
-        labelPuertos.place(x=100, y=5)
+        labelPuertos.place(x=350, y=5)
         labelConfiguracion = tk.Label(raizConfiguracion, text = 'Configuración', font=(fuente,15))
-        labelConfiguracion.place(x=330, y=5)
+        labelConfiguracion.place(x=540, y=5)
         labelCalibracion = tk.Label(raizConfiguracion, text = 'Calibración', font=(fuente,15))
-        labelCalibracion.place(x=560, y=5)
+        labelCalibracion.place(x=740, y=5)
         labelVelocidad = tk.Label(raizConfiguracion, text = 'Velocidad', font=(fuente,15))
-        labelVelocidad.place(x=680, y=5)
+        labelVelocidad.place(x=890, y=5)
         labelRedDeDifraccion = tk.Label(raizConfiguracion, text = 'Red de difracción', font=(fuente,15))
-        labelRedDeDifraccion.place(x=845, y=5)
+        labelRedDeDifraccion.place(x=1100, y=5)
 
         # SMC - PLATAFORMA DE RETARDO #
         # Esta función se llama al tocar el botón Setear.
@@ -1039,19 +1059,19 @@ class Configuracion():
         labelSMC = tk.Label(raizConfiguracion, text = 'Plataforma de retardo(SMC)', font=(fuente,15))
         labelSMC.place(x=5, y=45)
         textoSMC = tk.Entry(raizConfiguracion, font=(fuente,15))
-        textoSMC.place(x=100, y=45, height=30, width=30)
+        textoSMC.place(x=280, y=45, height=30, width=30)
         textoSMC.delete(0, tk.END)
         textoSMC.insert(0, str(puertoSMCDefault))
         textoVelocidadSMC = tk.Entry(raizConfiguracion, font=(fuente,15))
-        textoVelocidadSMC.place(x=680, y=45, height=30, width=50)
+        textoVelocidadSMC.place(x=860, y=45, height=30, width=50)
         botonSetearPuertoSMC = tk.Button(raizConfiguracion, text = 'Setear', command = SetearPuertoSMC, font=(fuente,12))
-        botonSetearPuertoSMC.place(x=135,y=45)
+        botonSetearPuertoSMC.place(x=315,y=45)
         botonInicializarSMC = tk.Button(raizConfiguracion, text = 'Inicializar', command = InicializarSMC, font=(fuente,12))
-        botonInicializarSMC.place(x=320,y=45)
+        botonInicializarSMC.place(x=500,y=45)
         botonCalibrarSMC = tk.Button(raizConfiguracion, text = 'Calibrar', command = self.experimento.smc.Calibrar, font=(fuente,12))
-        botonCalibrarSMC.place(x=560, y=45)
+        botonCalibrarSMC.place(x=740, y=45)
         botonCambiarVelocidadSMC = tk.Button(raizConfiguracion, text = 'Cambiar', command = CambiarVelocidadSMC, font=(fuente,12))
-        botonCambiarVelocidadSMC.place(x=750, y=45)
+        botonCambiarVelocidadSMC.place(x=930, y=45)
         # Estos if y else son para que al reabrir la ventana configuración esté todo como tiene que estar.
         # Esto podría pasarse a objetos de una forma más normal...
         if self.b1:
@@ -1060,7 +1080,7 @@ class Configuracion():
         else:
             labelSMCReconocido = tk.Label(raizConfiguracion)
             botonInicializarSMC["state"] = "disabled"             
-        labelSMCReconocido.place(x=200, y=50)
+        labelSMCReconocido.place(x=380, y=50)
         if self.c1:
             labelSMCInicializado = tk.Label(raizConfiguracion, text = 'Inicializado', font=(fuente,12))
             botonCalibrarSMC["state"] = "normal"    
@@ -1072,7 +1092,7 @@ class Configuracion():
             botonCalibrarSMC["state"] = "disabled"   
             botonCambiarVelocidadSMC["state"]="disabled"
             textoVelocidadSMC["state"]="disabled"
-        labelSMCInicializado.place(x=460, y=50)
+        labelSMCInicializado.place(x=640, y=50)
         
         # SMS - MONOCROMADOR #
         def SetearPuertoSMS():
@@ -1114,35 +1134,35 @@ class Configuracion():
         labelMono = tk.Label(raizConfiguracion, text = 'Red de difracción(SMS)', font=(fuente,15))
         labelMono.place(x=5, y=90)
         textoMono = tk.Entry(raizConfiguracion, font=(fuente,15))
-        textoMono.place(x=100, y=90, height=30, width=30)
+        textoMono.place(x=280, y=90, height=30, width=30)
         textoMono.delete(0, tk.END)
         textoMono.insert(0, str(puertoSMSDefault))
         botonSetearPuertoSMS = tk.Button(raizConfiguracion, text = 'Setear', command = SetearPuertoSMS, font=(fuente,12))
-        botonSetearPuertoSMS.place(x=135,y=90)
+        botonSetearPuertoSMS.place(x=315,y=90)
         botonInicializarSMS = tk.Button(raizConfiguracion, text = 'Inicializar', command = InicializarSMS, font=(fuente,12))
-        botonInicializarSMS.place(x=320,y=90)
+        botonInicializarSMS.place(x=500,y=90)
         botonCalibrarSMS = tk.Button(raizConfiguracion, text = 'Calibrar', command = self.experimento.mono.Calibrar, font=(fuente,12))
-        botonCalibrarSMS.place(x=560, y=90)
+        botonCalibrarSMS.place(x=740, y=90)
         textoVelocidadSMS = tk.Entry(raizConfiguracion, font=(fuente,15))
-        textoVelocidadSMS.place(x=680, y=90, height=30, width=50)
+        textoVelocidadSMS.place(x=860, y=90, height=30, width=50)
         botonCambiarVelocidadSMS = tk.Button(raizConfiguracion, text = 'Cambiar', command = CambiarVelocidadSMS, font=(fuente,12))
-        botonCambiarVelocidadSMS.place(x=750, y=90)
+        botonCambiarVelocidadSMS.place(x=930, y=90)
         labelRed = tk.Label(raizConfiguracion, text="ranuras/mm ", font=(fuente,15))
-        labelRed.place(x=965, y=90) 
+        labelRed.place(x=1145, y=90) 
         botonCambiarRed = tk.Button(raizConfiguracion, text = 'Cambiar', command = CambiarRed, font=(fuente,12))
-        botonCambiarRed.place(x=1080, y=90)
+        botonCambiarRed.place(x=1260, y=90)
         choices = ['600', '1200']
         variable = tk.StringVar(raizConfiguracion)
         w = tk.OptionMenu(raizConfiguracion, variable, *choices)
         w.config(font=(fuente,12))
-        w.place(x=860,y=90, height=35, width=100)
+        w.place(x=1040,y=90, height=35, width=100)
         if self.b2:
             labelSMSReconocido = tk.Label(raizConfiguracion, text = 'Reconocido', font=(fuente,12))
             botonInicializarSMS["state"] = "normal"             
         else:
             labelSMSReconocido = tk.Label(raizConfiguracion)
             botonInicializarSMS["state"] = "disabled"             
-        labelSMSReconocido.place(x=200, y=90)
+        labelSMSReconocido.place(x=380, y=90)
         if self.c2:
             labelSMSInicializado = tk.Label(raizConfiguracion, text = 'Inicializado', font=(fuente,12))
             botonCalibrarSMS["state"] = "normal"    
@@ -1163,7 +1183,7 @@ class Configuracion():
             textoVelocidadSMS["state"]="disabled"
             w["state"]="disabled"
             botonCambiarRed["state"] = "disabled"  
-        labelSMSInicializado.place(x=460, y=90)
+        labelSMSInicializado.place(x=640, y=90)
         
         # LOCK IN #
         def SetearPuertoLockIn():
@@ -1190,25 +1210,25 @@ class Configuracion():
         labelLockIn = tk.Label(raizConfiguracion, text = 'Lock-In', font=(fuente,15))
         labelLockIn.place(x=5, y=140)
         textoLockIn = tk.Entry(raizConfiguracion, font=(fuente,15))
-        textoLockIn.place(x=100, y=140, height=30, width=30)
+        textoLockIn.place(x=280, y=140, height=30, width=30)
         textoLockIn.delete(0, tk.END)
         textoLockIn.insert(0, puertoLockInDefault)
         botonSetearPuertoLockIn = tk.Button(raizConfiguracion, text = 'Setear', command = SetearPuertoLockIn, font=(fuente,12))
-        botonSetearPuertoLockIn.place(x=135,y=140)
+        botonSetearPuertoLockIn.place(x=315,y=140)
         botonInicializarLockIn = tk.Button(raizConfiguracion, text = 'Inicializar', command = InicializarLockIn, font=(fuente,12))
-        botonInicializarLockIn.place(x=320,y=140)
+        botonInicializarLockIn.place(x=500,y=140)
         if self.b3:
             labelLockInReconocido = tk.Label(raizConfiguracion, text='Reconocido', font=(fuente,12))
             botonInicializarLockIn["state"] = "normal"
         else:
             labelLockInReconocido = tk.Label(raizConfiguracion)
             botonInicializarLockIn["state"] = "disabled"
-        labelLockInReconocido.place(x=200, y=140)
+        labelLockInReconocido.place(x=380, y=140)
         if self.c3:
             labelLockInInicializado = tk.Label(raizConfiguracion, text = 'Inicializado', font=(fuente,12))
         else:
             labelLockInInicializado = tk.Label(raizConfiguracion)
-        labelLockInInicializado.place(x=460, y=140)
+        labelLockInInicializado.place(x=640, y=140)
         # Cuando se abre el programa empieza en la ventana configuración y se tiene dos opciones: Salir o 
         # Continuar. Luego de Continuar, si se quiere volver a la ventana configuración, como ya no es la 
         # primera vez que se llama a configuración, solo aparece el botón Volver para ir a la ventana principal.
@@ -1248,27 +1268,80 @@ class Programa():
             labelGraficos = tk.Label(raiz, text="Valores a graficar: ", font=(fuente,15))
             labelGraficos.place(x=X, y=Y)
             self.Var1 = tk.IntVar()
-            tk.Checkbutton(raiz, text='X', variable=self.Var1, font=(fuente,15)).place(x=X,y=Y+35)
+            tk.Checkbutton(raiz, text='X', variable=self.Var1, font=(fuente,15)).place(x=X,y=Y+25)
             self.Var1.set(boolXDefault)
             self.Var2 = tk.IntVar()
-            tk.Checkbutton(raiz, text='Y', variable=self.Var2, font=(fuente,15)).place(x=X+50,y=Y+35)
+            tk.Checkbutton(raiz, text='Y', variable=self.Var2, font=(fuente,15)).place(x=X+50,y=Y+25)
             self.Var2.set(boolYDefault)
             self.Var3 = tk.IntVar()
-            tk.Checkbutton(raiz, text='R', variable=self.Var3, font=(fuente,15)).place(x=X+100,y=Y+35)
+            tk.Checkbutton(raiz, text='R', variable=self.Var3, font=(fuente,15)).place(x=X+100,y=Y+25)
             self.Var3.set(boolRDefault)
             self.Var4 = tk.IntVar()
-            tk.Checkbutton(raiz, text='\u03B8', variable=self.Var4, font=(fuente,15)).place(x=X+148,y=Y+35)
+            tk.Checkbutton(raiz, text='\u03B8', variable=self.Var4, font=(fuente,15)).place(x=X+148,y=Y+25)
             self.Var4.set(boolTitaDefault)
             self.Var5 = tk.IntVar()
-            tk.Checkbutton(raiz, text='X/AUX', variable=self.Var5, font=(fuente,15)).place(x=X+195,y=Y+35)
+            tk.Checkbutton(raiz, text='X/AUX', variable=self.Var5, font=(fuente,15)).place(x=X+195,y=Y+25)
             self.Var5.set(boolXAuxDefault)
             self.Var6 = tk.IntVar()
-            tk.Checkbutton(raiz, text='R/AUX', variable=self.Var6, font=(fuente,15)).place(x=X+285,y=Y+35)            
+            tk.Checkbutton(raiz, text='R/AUX', variable=self.Var6, font=(fuente,15)).place(x=X+285,y=Y+25)            
             self.Var6.set(boolRAuxDefault)
             
         def ObtenerValores(self):
             return (self.Var1.get(), self.Var2.get(), self.Var3.get(), self.Var4.get(), self.Var5.get(), self.Var6.get())
     
+    class PanelEjeX():
+        
+        def __init__(self, raiz, posicion, ejeXDefault):
+            X = posicion[0]
+            Y = posicion[1]
+            labelEjeX = tk.Label(raiz, text="Eje X del gráfico: ", font=(fuente,15))
+            labelEjeX.place(x=X, y=Y) 
+            choices = ['Tiempo', 'Distancia']
+            self.variable = tk.StringVar(raiz)
+            self.variable.set(ejeXDefault)
+            w = tk.OptionMenu(raiz, self.variable, *choices)
+            w.config(font=(fuente,12))
+            w.place(x=X+228,y=Y-3, height=35, width=130)
+        
+        def ObtenerValor(self):
+            return(self.variable.get())
+    
+    class PanelNombreArchivo():
+        
+        def __init__(self, raiz, posicion):
+            self.numeroDeMedicion = self.LecturaTxt()
+            X = posicion[0]
+            Y = posicion[1]
+            labelNombreArchivo = tk.Label(raiz, text="Nombre del archivo:", font=(fuente,15))
+            labelNombreArchivo.place(x=X, y=Y)
+            self.textoNombreArchivo = tk.Entry(raiz,width=15, font=(fuente,10))
+            self.textoNombreArchivo.place(x=X+230, y=Y, height=30, width=145)
+            self.textoNombreArchivo.delete(0, tk.END)
+            fecha = date.today()
+            fechaEnFormatoString = fecha.strftime("%Y-%m-%d")
+            nombre = fechaEnFormatoString + '_' + str(self.numeroDeMedicion) + '.csv'
+            self.textoNombreArchivo.insert(0, nombre)
+    
+        def ActualizarNombreArchivo(self):
+            self.numeroDeMedicion += 1
+            fecha = date.today()
+            fechaEnFormatoString = fecha.strftime("%Y-%m-%d")
+            nombreFechadoNuevo = fechaEnFormatoString + '_' + str(self.numeroDeMedicion) + '.csv'
+            self.textoNombreArchivo.delete(0, tk.END)
+            self.textoNombreArchivo.insert(0, nombreFechadoNuevo)      
+            with open('dataNombreArchivo.txt', 'w') as f:
+                f.write(nombreFechadoNuevo)
+        
+        def LecturaTxt(self):
+            with open('dataNombreArchivo.txt', 'r') as f:
+                linea = f.readline()
+                fecha = date.today()
+                fechaEnFormatoString = fecha.strftime("%Y-%m-%d")
+                if fechaEnFormatoString in linea:
+                    return int((linea.split('_')[1]).split('.')[0])
+                else:
+                    return 1
+ 
     class PanelPromedioAux():
         
         def __init__(self, raiz, posicion, segundosAPromediarDefault, boolPromedioAuxDefault):
@@ -1276,10 +1349,10 @@ class Programa():
             Y = posicion[1]
             
             self.Var7 = tk.IntVar()
-            tk.Checkbutton(raiz, text='Promediar Aux', variable=self.Var7, command=self.CambiarEstadoDeEntradaDeTexto, font=(fuente,15)).place(x=X,y=Y)
+            tk.Checkbutton(raiz, text='Promediar Aux:', variable=self.Var7, command=self.CambiarEstadoDeEntradaDeTexto, font=(fuente,15)).place(x=X,y=Y)
             self.Var7.set(boolPromedioAuxDefault)
             self.textoSegundosAPromediar = tk.Entry(raiz, font=(fuente,15))
-            self.textoSegundosAPromediar.place(x=X+200, y=Y, height=30, width=40)
+            self.textoSegundosAPromediar.place(x=X+230, y=Y, height=30, width=40)
             if boolPromedioAuxDefault:
                 self.textoSegundosAPromediar["state"]="normal"
             else:
@@ -1287,7 +1360,7 @@ class Programa():
             self.textoSegundosAPromediar.delete(0, tk.END)
             self.textoSegundosAPromediar.insert(0, segundosAPromediarDefault)
             self.labelSegundos = tk.Label(raiz, text='segundos', font=(fuente,15))
-            self.labelSegundos.place(x=X+250, y=Y)
+            self.labelSegundos.place(x=X+275, y=Y)
         
         def ObtenerSegundosAPromediar(self):
             if self.Var7.get():
@@ -1304,57 +1377,21 @@ class Programa():
             else:
                 self.textoSegundosAPromediar["state"]="disabled"
     
-    class PanelEjeX():
+    class PanelCantidadDeMedicionesARealizar():
         
-        def __init__(self, raiz, posicion, ejeXDefault):
+        def __init__(self, raiz, posicion, cantidadDeMedicionesARealizarDefault):
             X = posicion[0]
             Y = posicion[1]
-            labelEjeX = tk.Label(raiz, text="Eje X del gráfico: ", font=(fuente,15))
-            labelEjeX.place(x=X, y=Y) 
-            choices = ['Tiempo', 'Distancia']
-            self.variable = tk.StringVar(raiz)
-            self.variable.set(ejeXDefault)
-            w = tk.OptionMenu(raiz, self.variable, *choices)
-            w.config(font=(fuente,12))
-            w.place(x=X+245,y=Y-7, height=40, width=130)
-        
-        def ObtenerValor(self):
-            return(self.variable.get())
-    
-    class PanelNombreArchivo():
-        
-        def __init__(self, raiz, posicion):
-            self.LecturaTxt()
-            X = posicion[0]
-            Y = posicion[1]
-            labelNombreArchivo = tk.Label(raiz, text="Nombre del archivo:", font=(fuente,15))
-            labelNombreArchivo.place(x=X, y=Y)
-            self.textoNombreArchivo = tk.Entry(raiz,width=15, font=(fuente,10))
-            self.textoNombreArchivo.place(x=X+230, y=Y, height=30, width=145)
-            self.textoNombreArchivo.delete(0, tk.END)
-            fecha = date.today()
-            fechaEnFormatoString = fecha.strftime("%Y-%m-%d")
-            self.nombre = fechaEnFormatoString + '_' +str(self.numeroDeMedicion) + '.csv'
-            self.textoNombreArchivo.insert(0, self.nombre)        
-    
-        def ActualizarNombreArchivo(self):
-            self.numeroDeMedicion += 1
-            fecha = date.today()
-            fechaEnFormatoString = fecha.strftime("%Y-%m-%d")
-            nombreFechadoNuevo = fechaEnFormatoString + '_'+ str(self.numeroDeMedicion) + '.csv'
-            self.textoNombreArchivo.delete(0, tk.END)
-            self.textoNombreArchivo.insert(0, nombreFechadoNuevo)        
-        
-        def LecturaTxt(self):
-            with open('dataNombreArchivo.txt', 'r') as f:
-                linea1 = f.readline()
-                self.nombreArchivo = linea1
-                fecha = date.today()
-                fechaEnFormatoString = fecha.strftime("%Y-%m-%d")
-                if fechaEnFormatoString in self.nombreArchivo:
-                    self.numeroDeMedicion = int((linea1.split('_')[1]).split('.')[0])
-                else:
-                    self.numeroDeMedicion = 1
+            
+            self.labelCantidadDeMedicionesARealizar = tk.Label(raiz, text='Número de mediciones:', font=(fuente,15))
+            self.labelCantidadDeMedicionesARealizar.place(x=X, y=Y)            
+            self.textoCantidadDeMedicionesARealizar = tk.Entry(raiz, font=(fuente,15))
+            self.textoCantidadDeMedicionesARealizar.place(x=X+230, y=Y, height=30, width=40)
+            self.textoCantidadDeMedicionesARealizar.delete(0, tk.END)
+            self.textoCantidadDeMedicionesARealizar.insert(0, cantidadDeMedicionesARealizarDefault)            
+            
+        def ObtenerCantidadDeMedicionesARealizar(self):
+            return self.textoCantidadDeMedicionesARealizar.get()
     
     class PanelConversor():
     
@@ -1854,19 +1891,23 @@ class Programa():
         botonMedirCompletamente.place(x=1455, y=695, height=40, width=240)
  
         # Lectura de los .txt para configuración de gráfico.
-        ejeX, boolXDefault, boolYDefault, boolRDefault, boolTitaDefault, boolXAuxDefault, boolRAuxDefault, segundosAPromediarAuxDefault, boolPromedioAuxDefault = self.LeerDataGraficos()  
+        ejeX, boolXDefault, boolYDefault, boolRDefault, boolTitaDefault, boolXAuxDefault, boolRAuxDefault, segundosAPromediarAuxDefault, boolPromedioAuxDefault, cantidadDeMedicionesARealizarDefault = self.LeerDataGraficos()  
         
         # PANEL VALORES A GRAFICAR #
         self.panelValoresAGraficar = self.PanelValoresAGraficar(self.raiz, (1320,750), boolXDefault, boolYDefault, boolRDefault, boolTitaDefault, boolXAuxDefault, boolRAuxDefault)
 
         # PANEL EJE X: TIEMPO O DISTANCIA#
-        self.panelEjeX = self.PanelEjeX(self.raiz, (1320,840), ejeX)
+        self.panelEjeX = self.PanelEjeX(self.raiz, (1320,820), ejeX)
 
         # PANEL NOMBRE ARCHIVO #
-        self.panelNombreArchivo = self.PanelNombreArchivo(self.raiz, (1320, 900))
+        self.panelNombreArchivo = self.PanelNombreArchivo(self.raiz, (1320, 870))
         
         # PANEL PROMEDIAR AUX #
-        self.panelPromedioAux = self.PanelPromedioAux(self.raiz, (1320, 960), segundosAPromediarAuxDefault, boolPromedioAuxDefault)
+        self.panelPromedioAux = self.PanelPromedioAux(self.raiz, (1320, 915), segundosAPromediarAuxDefault, boolPromedioAuxDefault)
+
+        # PANEL CANTIDAD DE MEDICIONES A REALIZAR #
+        self.panelCantidadDeMedicionesARealizar = self.PanelCantidadDeMedicionesARealizar(self.raiz, (1320, 960), cantidadDeMedicionesARealizarDefault)
+
 
         # PROTOCOLO AL CERRAR PROGRAMA #        
 
@@ -1877,9 +1918,6 @@ class Programa():
     def Salir(self):
         self.experimento.smc.address.close()
         self.experimento.mono.address.close()
-        nombreArchivo_CSV = self.panelNombreArchivo.nombre
-        with open('dataNombreArchivo.txt', 'w') as f:
-            f.write(nombreArchivo_CSV)
         self.raiz.destroy()
     
     def GrabarDataPuertos(self, puertoSMC, puertoSMS, puertoLockIn):
@@ -1887,14 +1925,14 @@ class Programa():
         with open('dataPuertos.txt', 'w') as f:
             f.write(linea)
         
-    def GrabarDataGraficos(self, ejeX, valoresAGraficar, segundosPromedioAux, booleanoPromedioAux):
+    def GrabarDataGraficos(self, ejeX, valoresAGraficar, segundosPromedioAux, booleanoPromedioAux, cantidadDeMedicionesARealizar):
         boolX = valoresAGraficar[0]
         boolY = valoresAGraficar[1]
         boolR = valoresAGraficar[2]
         boolTita = valoresAGraficar[3]
         boolXAux = valoresAGraficar[4]
         boolRAux = valoresAGraficar[5]
-        linea = str(ejeX) + ',' + str(boolX) + ',' + str(boolY) + ',' + str(boolR) + ',' + str(boolTita) + ',' + str(boolXAux) + ',' + str(boolRAux) + ',' + str(segundosPromedioAux) + ',' + str(booleanoPromedioAux)
+        linea = str(ejeX) + ',' + str(boolX) + ',' + str(boolY) + ',' + str(boolR) + ',' + str(boolTita) + ',' + str(boolXAux) + ',' + str(boolRAux) + ',' + str(segundosPromedioAux) + ',' + str(booleanoPromedioAux) + ',' + str(cantidadDeMedicionesARealizar)
         with open('dataGraficos.txt', 'w') as f:
             f.write(linea)
     
@@ -1915,21 +1953,22 @@ class Programa():
         with open('dataGraficos.txt', 'r') as f:
             linea = f.readline()
         ejeX = str(linea.split(',')[0])
-        boolX = bool(linea.split(',')[1])
-        boolY = bool(linea.split(',')[2])
-        boolR = bool(linea.split(',')[3])
-        boolTita = bool(linea.split(',')[4])
-        boolXAux = bool(linea.split(',')[5])
-        boolRAux = bool(linea.split(',')[6])
+        boolX = bool(int(linea.split(',')[1]))
+        boolY = bool(int(linea.split(',')[2]))
+        boolR = bool(int(linea.split(',')[3]))
+        boolTita = bool(int(linea.split(',')[4]))
+        boolXAux = bool(int(linea.split(',')[5]))
+        boolRAux = bool(int(linea.split(',')[6]))
         segundosPromedioAux = str(linea.split(',')[7])
-        boolPromedioAux = bool(linea.split(',')[8])
-        return ejeX, boolX, boolY, boolR, boolTita, boolXAux, boolRAux, segundosPromedioAux, boolPromedioAux
+        boolPromedioAux = bool(int(linea.split(',')[8]))
+        cantidadDeMedicionesARealizar = str(linea.split(',')[9])
+        return ejeX, boolX, boolY, boolR, boolTita, boolXAux, boolRAux, segundosPromedioAux, boolPromedioAux, cantidadDeMedicionesARealizar
     
     def LeerDataNumeroDeConstantesDeTiempo(self):
         with open('dataNumeroDeConstantesDeTiempo.txt', 'r') as f:
             linea = f.readline()
         return linea
-        
+
     def CalcularTiempoDeMedicionALambdaFija(self,
                                             VectorPosicionInicialSMC_mm,
                                             VectorPosicionFinalSMC_mm,
